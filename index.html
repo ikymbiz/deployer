@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GitHub Instant Deployer v9</title>
+    <title>GitHub Instant Deployer v10</title>
     <style>
         :root {
             --bg: #f6f8fa; --card-bg: #ffffff; --text: #24292f;
@@ -22,10 +22,15 @@
         .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
         .theme-toggle { cursor: pointer; background: none; border: 1px solid var(--border); color: var(--text); padding: 5px 10px; border-radius: 6px; font-size: 0.8rem; }
         
+        /* 追加したリンクのスタイル */
+        .setup-link { background: #fff8c5; color: #24292f; padding: 12px; border-radius: 8px; font-size: 0.85rem; margin-bottom: 20px; border: 1px solid #d4a017; text-align: center; }
+        [data-theme="dark"] .setup-link { background: #332b00; color: #f0e050; border-color: #6e5e00; }
+        .setup-link a { color: #0969da; font-weight: bold; text-decoration: underline; }
+        [data-theme="dark"] .setup-link a { color: #58a6ff; }
+
         label { display: block; margin-top: 15px; font-weight: bold; font-size: 0.9rem; }
         input, textarea { width: 100%; padding: 12px; margin-top: 5px; border: 1px solid var(--border); border-radius: 8px; box-sizing: border-box; font-size: 16px; background: var(--input-bg); color: var(--text); }
         
-        /* 独自ドメイン・DNS診断エリア */
         .domain-area { background: rgba(9, 105, 218, 0.05); padding: 15px; border-radius: 8px; border: 1px dashed var(--accent); margin-top: 20px; }
         .check-btn { background: var(--accent); color: white; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 0.8rem; margin-top: 10px; font-weight: bold; }
         #dnsGuide { display: none; margin-top: 15px; padding: 12px; background: var(--guide-bg); border-radius: 8px; font-size: 0.85rem; border: 1px solid var(--accent); }
@@ -49,8 +54,13 @@
 
 <div class="card">
     <div class="header">
-        <h2>🌐 GitHub Deployer v9</h2>
+        <h2>🌐 GitHub Deployer v10</h2>
         <button class="theme-toggle" onclick="toggleTheme()">🌓 Theme</button>
+    </div>
+
+    <div class="setup-link">
+        🔑 <a href="https://github.com/settings/tokens/new?scopes=repo,workflow&description=WebDeployTool" target="_blank">
+        トークンを新規発行する</a>
     </div>
 
     <label>GitHub Access Token:</label>
@@ -92,7 +102,7 @@
     window.onload = () => {
         document.getElementById('token').value = localStorage.getItem('gh_token') || '';
         document.body.setAttribute('data-theme', localStorage.getItem('theme') || 'light');
-        addFileRow('index.html', '<!DOCTYPE html>\n<html>\n<body>\n  <h1>DNS Check Tool Ready!</h1>\n</body>\n</html>', false);
+        addFileRow('index.html', '<!DOCTYPE html>\n<html>\n<head><meta charset="utf-8"></head>\n<body>\n  <h1>Deployment Success!</h1>\n</body>\n</html>', false);
     };
 
     function toggleTheme() {
@@ -116,7 +126,6 @@
         container.appendChild(div);
     }
 
-    // --- DNS診断機能 ---
     async function checkDNS() {
         const domain = document.getElementById('customDomain').value.trim();
         const token = document.getElementById('token').value.trim();
@@ -125,19 +134,15 @@
         const guideContent = document.getElementById('dnsGuideContent');
 
         if (!domain) return alert("ドメインを入力してください");
-        
         statusEl.innerHTML = '<span class="status-badge">診断中...</span>';
         
         try {
-            // ユーザー名の取得（CNAMEの期待値計算用）
             const userRes = await fetch('https://api.github.com/user', { headers: {'Authorization': `token ${token}`} });
-            if (!userRes.ok) throw new Error("トークンを先に正しく入力してください");
+            if (!userRes.ok) throw new Error("先にトークンを入力してください");
             const username = (await userRes.json()).login;
             
             const isSub = domain.split('.').length > 2;
             const expectedCname = `${username}.github.io`;
-            
-            // Cloudflare DNS APIを使用して現在のレコードを取得
             const type = isSub ? 'CNAME' : 'A';
             const res = await fetch(`https://cloudflare-dns.com/query?name=${domain}&type=${type}`, {
                 headers: { 'Accept': 'application/dns-json' }
@@ -145,15 +150,8 @@
             const data = await res.json();
             const records = data.Answer ? data.Answer.map(a => a.data.replace(/\.$/, '')) : [];
 
-            // 判定
-            let isOk = false;
-            if (isSub) {
-                isOk = records.includes(expectedCname);
-            } else {
-                isOk = records.some(r => GH_IPS.includes(r));
-            }
+            let isOk = isSub ? records.includes(expectedCname) : records.some(r => GH_IPS.includes(r));
 
-            // ガイドの表示
             guideEl.style.display = 'block';
             guideContent.innerHTML = isSub 
                 ? `現在: <code>${records[0] || 'なし'}</code><br>期待: <code>${expectedCname}</code> (CNAME)`
@@ -162,10 +160,7 @@
             statusEl.innerHTML = isOk 
                 ? '<span class="status-badge status-ok">✅ 設定OK</span>' 
                 : '<span class="status-badge status-ng">❌ 設定不一致</span>';
-
-        } catch (err) {
-            statusEl.innerHTML = `<span class="status-badge status-ng">エラー: ${err.message}</span>`;
-        }
+        } catch (err) { statusEl.innerHTML = `<span class="status-badge status-ng">${err.message}</span>`; }
     }
 
     function addLog(msg) {
