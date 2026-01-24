@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>GitHub Instant Deployer</title>
+    <style>
+        body { font-family: 'Helvetica Neue', Arial, sans-serif; max-width: 700px; margin: 40px auto; padding: 30px; background: #f6f8fa; color: #24292f; }
+        .card { background: white; padding: 25px; border-radius: 8px; border: 1px solid #d0d7de; shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        h1 { font-size: 20px; margin-top: 0; border-bottom: 1px solid #d0d7de; padding-bottom: 10px; }
+        label { display: block; margin-top: 15px; font-weight: bold; font-size: 14px; }
+        input, textarea { width: 100%; padding: 10px; margin-top: 5px; border: 1px solid #d0d7de; border-radius: 6px; box-sizing: border-box; font-family: monospace; }
+        .token-area { background: #fff8c5; padding: 10px; border-radius: 6px; margin-bottom: 20px; font-size: 12px; }
+        button { background: #2da44e; color: white; border: none; padding: 12px 20px; border-radius: 6px; cursor: pointer; width: 100%; font-weight: bold; margin-top: 20px; transition: 0.2s; }
+        button:hover { background: #2c974b; }
+        button:disabled { background: #94d3a2; cursor: not-allowed; }
+        #log { margin-top: 20px; font-size: 13px; color: #57606a; background: #f6f8fa; padding: 10px; border-radius: 6px; height: 120px; overflow-y: auto; border: 1px solid #d0d7de; }
+        .success-link { display: none; margin-top: 20px; padding: 15px; background: #dafbe1; color: #1a7f37; border-radius: 6px; text-align: center; font-weight: bold; }
+        a { color: #0969da; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <h1>🚀 GitHub Instant Deployer</h1>
+    
+    <div class="token-area">
+        <label>GitHub Access Token (PAT):</label>
+        <input type="password" id="token" placeholder="ghp_xxxxxxxxxxxx" oninput="saveToken()">
+        <small>※トークンはブラウザ（localStorage）にのみ保存されます。</small>
+    </div>
+
+    <label>リポジトリ名:</label>
+    <input type="text" id="repoName" placeholder="my-awesome-site">
+
+    <label>HTMLコード (index.html):</label>
+    <textarea id="content" rows="8">
+<!DOCTYPE html>
+<html lang="ja">
+<head><meta charset="UTF-8"><title>Hello World</title></head>
+<body>
+    <h1>🎉 デプロイ完了！</h1>
+    <p>このページはHTMLツールから自動生成されました。</p>
+</body>
+</html></textarea>
+
+    <button id="execBtn" onclick="startWorkflow()">リポジトリ作成・公開を全自動で実行</button>
+
+    <div id="log">ログがここに表示されます...</div>
+    
+    <div id="successBox" class="success-link">
+        ✨ サイト公開リクエスト完了！<br>
+        <a id="siteUrl" href="#" target="_blank">サイトを確認する</a>
+        <p style="font-size: 11px; font-weight: normal;">(反映まで1分ほどかかる場合があります)</p>
+    </div>
+</div>
+
+<script>
+    // ブラウザからトークンを読み込み
+    window.onload = () => {
+        const savedToken = localStorage.getItem('gh_token');
+        if (savedToken) document.getElementById('token').value = savedToken;
+    };
+
+    function saveToken() {
+        localStorage.setItem('gh_token', document.getElementById('token').value);
+    }
+
+    const logEl = document.getElementById('log');
+    function addLog(msg) {
+        logEl.innerHTML += `<div>> ${msg}</div>`;
+        logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    async function startWorkflow() {
+        const token = document.getElementById('token').value;
+        const repoName = document.getElementById('repoName').value.trim();
+        const content = document.getElementById('content').value;
+        const btn = document.getElementById('execBtn');
+
+        if (!token || !repoName) return alert("トークンとリポジトリ名が必要です");
+
+        btn.disabled = true;
+        document.getElementById('successBox').style.display = 'none';
+        logEl.innerHTML = '';
+        
+        try {
+            const headers = { 
+                'Authorization': `token ${token}`, 
+                'Accept': 'application/vnd.github+json',
+                'Content-Type': 'application/json' 
+            };
+
+            // 1. ユーザー名取得
+            addLog("ユーザー情報を確認中...");
+            const userRes = await fetch('https://api.github.com/user', { headers });
+            const user = await userRes.json();
+            const username = user.login;
+            addLog(`こんにちは、${username}さん。`);
+
+            // 2. リポジトリ作成
+            addLog(`リポジトリ「${repoName}」を作成中...`);
+            const repoRes = await fetch('https://api.github.com/user/repos', {
+                method: 'POST',
+                headers,
+                body: JSON.stringify({ name: repoName, auto_init: true })
+            });
+            if (!repoRes.ok) throw new Error("リポジトリ作成に失敗しました (同名のものがすでにあるかも)");
+
+            // 3. index.html 作成
+            addLog("index.html をコミット中...");
+            const encodedContent = btoa(unescape(encodeURIComponent(content)));
+            const fileRes = await fetch(`https://api.github.com/repos/${username}/${repoName}/contents/index.html`, {
+                method: 'PUT',
+                headers,
+                body: JSON.stringify({ message: "Auto deploy", content: encodedContent })
+            });
+            if (!fileRes.ok) throw new Error("ファイルの作成に失敗しました");
+
+            // 4. GitHub Pages 有効化 (ここが重要！)
+            addLog("GitHub Pages を有効化中...");
+            const pagesRes = await fetch(`https://api.github.com/repos/${username}/${repoName}/pages`, {
+                method: 'POST',
+                headers,
+                body: JSON.stringify({ source: { branch: "main", path: "/" } })
+            });
+
+            if (pagesRes.ok || pagesRes.status === 201) {
+                addLog("GitHub Pages 設定完了！");
+            } else {
+                addLog("Pages有効化に再トライ中 (リポジトリ反映待ち)...");
+                // 数秒待って再試行
+                await new Promise(r => setTimeout(r, 3000));
+                await fetch(`https://api.github.com/repos/${username}/${repoName}/pages`, {
+                    method: 'POST', headers, body: JSON.stringify({ source: { branch: "main", path: "/" } })
+                });
+            }
+
+            // 5. 完了表示
+            const url = `https://${username}.github.io/${repoName}/`;
+            document.getElementById('siteUrl').href = url;
+            document.getElementById('siteUrl').innerText = url;
+            document.getElementById('successBox').style.display = 'block';
+            addLog("すべての工程が完了しました！");
+
+        } catch (err) {
+            addLog(`❌ エラー: ${err.message}`);
+            console.error(err);
+        } finally {
+            btn.disabled = false;
+        }
+    }
+</script>
+</body>
+</html>
