@@ -3,73 +3,118 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GitHub Instant Deployer v5</title>
+    <title>GitHub Instant Deployer v6</title>
     <style>
-        :root { --primary: #2da44e; --bg: #f6f8fa; --text: #24292f; }
-        body { font-family: -apple-system, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 15px; }
-        .card { background: white; padding: 20px; border-radius: 12px; border: 1px solid #d0d7de; max-width: 500px; margin: auto; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
-        h2 { font-size: 1.4rem; margin-top: 0; text-align: center; }
+        :root {
+            --bg: #f6f8fa; --card-bg: #ffffff; --text: #24292f;
+            --border: #d0d7de; --primary: #2da44e; --input-bg: #ffffff;
+            --log-bg: #24292f; --log-text: #adbac7;
+        }
+        [data-theme="dark"] {
+            --bg: #0d1117; --card-bg: #161b22; --text: #c9d1d9;
+            --border: #30363d; --primary: #238636; --input-bg: #0d1117;
+            --log-bg: #010409; --log-text: #8b949e;
+        }
+        body { font-family: -apple-system, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 15px; transition: 0.3s; }
+        .card { background: var(--card-bg); padding: 20px; border-radius: 12px; border: 1px solid var(--border); max-width: 600px; margin: auto; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
         
-        .setup-link { background: #fff8c5; padding: 12px; border-radius: 8px; font-size: 0.85rem; margin-bottom: 20px; border: 1px solid #d4a017; line-height: 1.4; }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .theme-toggle { cursor: pointer; background: none; border: 1px solid var(--border); color: var(--text); padding: 5px 10px; border-radius: 6px; font-size: 0.8rem; }
+
+        .setup-link { background: #fff8c5; color: #24292f; padding: 12px; border-radius: 8px; font-size: 0.85rem; margin-bottom: 20px; border: 1px solid #d4a017; }
+        [data-theme="dark"] .setup-link { background: #332b00; color: #f0e050; border-color: #6e5e00; }
         .setup-link a { color: #0969da; font-weight: bold; }
+        [data-theme="dark"] .setup-link a { color: #58a6ff; }
 
         label { display: block; margin-top: 15px; font-weight: bold; font-size: 0.9rem; }
-        input, textarea { width: 100%; padding: 12px; margin-top: 5px; border: 1px solid #d0d7de; border-radius: 8px; box-sizing: border-box; font-size: 16px; }
+        input, textarea { width: 100%; padding: 12px; margin-top: 5px; border: 1px solid var(--border); border-radius: 8px; box-sizing: border-box; font-size: 16px; background: var(--input-bg); color: var(--text); }
         
-        button { background: var(--primary); color: white; border: none; padding: 16px; border-radius: 8px; cursor: pointer; width: 100%; font-weight: bold; font-size: 1.1rem; margin-top: 20px; }
-        button:disabled { background: #94d3a2; }
+        /* ファイルリスト用スタイル */
+        .file-item { border: 1px solid var(--border); padding: 15px; border-radius: 8px; margin-top: 10px; position: relative; }
+        .remove-btn { position: absolute; top: 10px; right: 10px; color: #cf222e; cursor: pointer; font-size: 0.8rem; border: none; background: none; }
+        .add-file-btn { background: none; border: 1px dashed var(--border); color: var(--text); width: 100%; padding: 10px; margin-top: 10px; border-radius: 8px; cursor: pointer; }
+
+        button.main-btn { background: var(--primary); color: white; border: none; padding: 16px; border-radius: 8px; cursor: pointer; width: 100%; font-weight: bold; font-size: 1.1rem; margin-top: 25px; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
 
         #progressContainer { display: none; margin-top: 20px; text-align: center; }
         .spinner { border: 4px solid rgba(0,0,0,0.1); border-left-color: var(--primary); border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; margin: 0 auto 10px; }
         @keyframes spin { to { transform: rotate(360deg); } }
 
-        #log { margin-top: 20px; font-size: 0.75rem; background: #24292f; color: #adbac7; padding: 12px; border-radius: 8px; height: 100px; overflow-y: auto; font-family: monospace; }
-        
-        .result-box { margin-top: 20px; padding: 20px; border-radius: 10px; display: none; border: 3px solid var(--primary); background: #dafbe1; text-align: center; }
-        .result-box a { color: #1a7f37; font-weight: bold; word-break: break-all; }
+        #log { margin-top: 20px; font-size: 0.75rem; background: var(--log-bg); color: var(--log-text); padding: 12px; border-radius: 8px; height: 120px; overflow-y: auto; font-family: monospace; }
+        .result-box { margin-top: 20px; padding: 20px; border-radius: 10px; display: none; border: 2px solid var(--primary); text-align: center; }
     </style>
 </head>
-<body>
+<body data-theme="light">
 
 <div class="card">
-    <h2>🚀 爆速デプロイ (上書き対応)</h2>
+    <div class="header">
+        <h2>🚀 GitHub Deployer v6</h2>
+        <button class="theme-toggle" onclick="toggleTheme()">🌙 Dark Mode</button>
+    </div>
     
     <div class="setup-link">
-        🔑 <a href="https://github.com/settings/tokens/new?scopes=repo,workflow&description=WebDeployTool" target="_blank">トークンを新規発行する</a><br>
-        <small>※スマホの方は長押しで「新しいタブ」で開くとスムーズです。</small>
+        🔑 <a href="https://github.com/settings/tokens/new?scopes=repo,workflow&description=WebDeployTool" target="_blank">トークンを新規発行する</a>
     </div>
 
     <label>GitHub Access Token:</label>
     <input type="password" id="token" placeholder="ghp_xxxx を貼り付け" oninput="saveToken()">
     
     <label>リポジトリ名:</label>
-    <input type="text" id="repoName" placeholder="my-project">
+    <input type="text" id="repoName" placeholder="my-awesome-site">
 
-    <label>HTML内容:</label>
-    <textarea id="content" rows="4"><!DOCTYPE html><html><body style="text-align:center;"><h1>✨ Update Success!</h1></body></html></textarea>
+    <div id="fileContainer">
+        <label>デプロイするファイル:</label>
+        </div>
+    <button class="add-file-btn" onclick="addFileRow('style.css', 'body { background: #f0f0f0; }')">+ ファイルを追加</button>
 
-    <button id="execBtn" onclick="run()">デプロイを開始する</button>
+    <button id="execBtn" class="main-btn" onclick="run()">全ファイルをデプロイ！</button>
 
     <div id="progressContainer">
         <div class="spinner"></div>
-        <div id="waitMsg">デプロイ中... あと <span id="timer">60</span> 秒</div>
+        <div id="waitMsg">デプロイ完了まであと <span id="timer">60</span> 秒</div>
     </div>
 
-    <div id="log">ログがここに表示されます</div>
+    <div id="log"></div>
     
     <div id="resultBox" class="result-box">
-        <b>✅ 完了しました！</b><br><br>
-        <a id="siteUrl" href="#" target="_blank">サイトを確認</a>
+        <b>✅ 公開されました！</b><br><br>
+        <a id="siteUrl" href="#" target="_blank" style="color: var(--primary); font-weight: bold;">サイトを確認する</a>
     </div>
 </div>
 
 <script>
+    // --- 初期設定とテーマ切り替え ---
     window.onload = () => {
         document.getElementById('token').value = localStorage.getItem('gh_token') || '';
+        const savedTheme = localStorage.getItem('theme') || 'light';
+        document.body.setAttribute('data-theme', savedTheme);
+        // 初期ファイルとしてindex.htmlを追加
+        addFileRow('index.html', '<!DOCTYPE html>\n<html>\n<body>\n  <h1>Hello Multi-files!</h1>\n</body>\n</html>', false);
     };
+
+    function toggleTheme() {
+        const current = document.body.getAttribute('data-theme');
+        const next = current === 'light' ? 'dark' : 'light';
+        document.body.setAttribute('data-theme', next);
+        localStorage.setItem('theme', next);
+    }
 
     function saveToken() {
         localStorage.setItem('gh_token', document.getElementById('token').value);
+    }
+
+    // --- ファイル行の動的追加/削除 ---
+    function addFileRow(name = '', content = '', removable = true) {
+        const container = document.getElementById('fileContainer');
+        const div = document.createElement('div');
+        div.className = 'file-item';
+        div.innerHTML = `
+            ${removable ? '<button class="remove-btn" onclick="this.parentElement.remove()">削除</button>' : ''}
+            <input type="text" class="filename" placeholder="filename.html" value="${name}">
+            <textarea class="filecontent" rows="4" placeholder="コードをここに貼り付け">${content}</textarea>
+        `;
+        container.appendChild(div);
     }
 
     function addLog(msg) {
@@ -78,14 +123,15 @@
         log.scrollTop = log.scrollHeight;
     }
 
+    // --- メイン処理 ---
     async function run() {
         const token = document.getElementById('token').value.replace(/[\s\u3000]/g, '');
         const repoName = document.getElementById('repoName').value.trim();
-        const content = document.getElementById('content').value;
         const btn = document.getElementById('execBtn');
-        const progress = document.getElementById('progressContainer');
+        const fileItems = document.querySelectorAll('.file-item');
 
-        if (!token || !repoName) return alert("入力が不足しています");
+        if (!token || !repoName) return alert("トークンとリポジトリ名が必要です");
+        if (fileItems.length === 0) return alert("ファイルがありません");
 
         btn.disabled = true;
         document.getElementById('resultBox').style.display = 'none';
@@ -98,29 +144,20 @@
 
         try {
             // 1. ユーザー確認
-            addLog("認証中...");
+            addLog("GitHubに接続中...");
             const userRes = await fetch('https://api.github.com/user', { headers });
             if (!userRes.ok) throw new Error("トークンが無効です");
             const username = (await userRes.json()).login;
 
-            // 2. リポジトリの存在確認
-            addLog("リポジトリを確認中...");
+            // 2. リポジトリ確認 & 作成
             const checkRepo = await fetch(`https://api.github.com/repos/${username}/${repoName}`, { headers });
-            
-            let isNewRepo = true;
             if (checkRepo.ok) {
-                const confirmUpdate = window.confirm(`リポジトリ「${repoName}」は既に存在します。内容を上書きしますか？`);
-                if (!confirmUpdate) {
-                    addLog("キャンセルされました");
+                if (!window.confirm("リポジトリが既存です。ファイルを上書きしますか？")) {
+                    addLog("中止しました");
                     btn.disabled = false;
                     return;
                 }
-                isNewRepo = false;
-                addLog("既存リポジトリへの上書きを開始...");
-            }
-
-            // 3. リポジトリ作成（新規の場合のみ）
-            if (isNewRepo) {
+            } else {
                 addLog("新規リポジトリを作成中...");
                 await fetch('https://api.github.com/user/repos', {
                     method: 'POST', headers,
@@ -128,34 +165,36 @@
                 });
             }
 
-            // 4. index.html の上書き（SHA取得が必要）
-            addLog("ファイルをアップロード中...");
-            const fileCheck = await fetch(`https://api.github.com/repos/${username}/${repoName}/contents/index.html`, { headers });
-            let sha = null;
-            if (fileCheck.ok) {
-                sha = (await fileCheck.json()).sha;
+            // 3. 全ファイルのアップロード
+            for (const item of fileItems) {
+                const name = item.querySelector('.filename').value.trim();
+                const content = item.querySelector('.filecontent').value;
+                if (!name) continue;
+
+                addLog(`ファイル送信中: ${name}...`);
+                
+                // SHA取得
+                const fCheck = await fetch(`https://api.github.com/repos/${username}/${repoName}/contents/${name}`, { headers });
+                let sha = fCheck.ok ? (await fCheck.json()).sha : null;
+
+                const encoded = btoa(unescape(encodeURIComponent(content)));
+                const upRes = await fetch(`https://api.github.com/repos/${username}/${repoName}/contents/${name}`, {
+                    method: 'PUT',
+                    headers,
+                    body: JSON.stringify({ message: `Update ${name}`, content: encoded, sha: sha })
+                });
+                if (!upRes.ok) throw new Error(`${name} のアップロードに失敗`);
             }
 
-            const encodedContent = btoa(unescape(encodeURIComponent(content)));
-            await fetch(`https://api.github.com/repos/${username}/${repoName}/contents/index.html`, {
-                method: 'PUT',
-                headers,
-                body: JSON.stringify({ 
-                    message: "Update index.html", 
-                    content: encodedContent,
-                    sha: sha // 既存ファイルがある場合はこれが必要
-                })
-            });
-
-            // 5. Pages有効化（新規の場合のみ試行、既存でも念のため実行）
-            addLog("GitHub Pages 設定を確認中...");
+            // 4. Pages有効化
+            addLog("GitHub Pages 設定を確認...");
             await fetch(`https://api.github.com/repos/${username}/${repoName}/pages`, {
                 method: 'POST', headers,
                 body: JSON.stringify({ source: { branch: "main", path: "/" } })
             });
 
-            // 6. カウントダウン
-            progress.style.display = 'block';
+            // 5. カウントダウン
+            document.getElementById('progressContainer').style.display = 'block';
             let seconds = 60;
             const timer = setInterval(() => {
                 seconds--;
@@ -169,13 +208,13 @@
             document.getElementById('siteUrl').href = siteUrl;
             document.getElementById('siteUrl').innerText = siteUrl;
             document.getElementById('resultBox').style.display = 'block';
-            addLog("✅ デプロイ成功！");
+            addLog("✅ 全ファイルのデプロイに成功しました！");
 
         } catch (err) {
             addLog(`❌ エラー: ${err.message}`);
         } finally {
             btn.disabled = false;
-            progress.style.display = 'none';
+            document.getElementById('progressContainer').style.display = 'none';
         }
     }
 </script>
