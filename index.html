@@ -3,45 +3,45 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GitHub Instant Deployer v6</title>
+    <title>GitHub Instant Deployer v9</title>
     <style>
         :root {
             --bg: #f6f8fa; --card-bg: #ffffff; --text: #24292f;
             --border: #d0d7de; --primary: #2da44e; --input-bg: #ffffff;
-            --log-bg: #24292f; --log-text: #adbac7;
+            --log-bg: #24292f; --log-text: #adbac7; --accent: #0969da;
+            --guide-bg: #f0f7ff; --error: #cf222e; --success: #2da44e;
         }
         [data-theme="dark"] {
             --bg: #0d1117; --card-bg: #161b22; --text: #c9d1d9;
             --border: #30363d; --primary: #238636; --input-bg: #0d1117;
-            --log-bg: #010409; --log-text: #8b949e;
+            --log-bg: #010409; --log-text: #8b949e; --accent: #58a6ff;
+            --guide-bg: #111827;
         }
         body { font-family: -apple-system, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 15px; transition: 0.3s; }
         .card { background: var(--card-bg); padding: 20px; border-radius: 12px; border: 1px solid var(--border); max-width: 600px; margin: auto; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
-        
-        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
         .theme-toggle { cursor: pointer; background: none; border: 1px solid var(--border); color: var(--text); padding: 5px 10px; border-radius: 6px; font-size: 0.8rem; }
-
-        .setup-link { background: #fff8c5; color: #24292f; padding: 12px; border-radius: 8px; font-size: 0.85rem; margin-bottom: 20px; border: 1px solid #d4a017; }
-        [data-theme="dark"] .setup-link { background: #332b00; color: #f0e050; border-color: #6e5e00; }
-        .setup-link a { color: #0969da; font-weight: bold; }
-        [data-theme="dark"] .setup-link a { color: #58a6ff; }
-
+        
         label { display: block; margin-top: 15px; font-weight: bold; font-size: 0.9rem; }
         input, textarea { width: 100%; padding: 12px; margin-top: 5px; border: 1px solid var(--border); border-radius: 8px; box-sizing: border-box; font-size: 16px; background: var(--input-bg); color: var(--text); }
         
-        /* ファイルリスト用スタイル */
+        /* 独自ドメイン・DNS診断エリア */
+        .domain-area { background: rgba(9, 105, 218, 0.05); padding: 15px; border-radius: 8px; border: 1px dashed var(--accent); margin-top: 20px; }
+        .check-btn { background: var(--accent); color: white; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 0.8rem; margin-top: 10px; font-weight: bold; }
+        #dnsGuide { display: none; margin-top: 15px; padding: 12px; background: var(--guide-bg); border-radius: 8px; font-size: 0.85rem; border: 1px solid var(--accent); }
+        .status-badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: bold; margin-left: 10px; }
+        .status-ok { background: #dafbe1; color: #1a7f37; }
+        .status-ng { background: #ffeef0; color: #cf222e; }
+
         .file-item { border: 1px solid var(--border); padding: 15px; border-radius: 8px; margin-top: 10px; position: relative; }
-        .remove-btn { position: absolute; top: 10px; right: 10px; color: #cf222e; cursor: pointer; font-size: 0.8rem; border: none; background: none; }
+        .remove-btn { position: absolute; top: 10px; right: 10px; color: var(--error); cursor: pointer; border: none; background: none; font-size: 0.8rem; }
         .add-file-btn { background: none; border: 1px dashed var(--border); color: var(--text); width: 100%; padding: 10px; margin-top: 10px; border-radius: 8px; cursor: pointer; }
 
         button.main-btn { background: var(--primary); color: white; border: none; padding: 16px; border-radius: 8px; cursor: pointer; width: 100%; font-weight: bold; font-size: 1.1rem; margin-top: 25px; }
-        button:disabled { opacity: 0.5; cursor: not-allowed; }
-
         #progressContainer { display: none; margin-top: 20px; text-align: center; }
         .spinner { border: 4px solid rgba(0,0,0,0.1); border-left-color: var(--primary); border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; margin: 0 auto 10px; }
         @keyframes spin { to { transform: rotate(360deg); } }
-
-        #log { margin-top: 20px; font-size: 0.75rem; background: var(--log-bg); color: var(--log-text); padding: 12px; border-radius: 8px; height: 120px; overflow-y: auto; font-family: monospace; }
+        #log { margin-top: 20px; font-size: 0.75rem; background: var(--log-bg); color: var(--log-text); padding: 12px; border-radius: 8px; height: 100px; overflow-y: auto; font-family: monospace; }
         .result-box { margin-top: 20px; padding: 20px; border-radius: 10px; display: none; border: 2px solid var(--primary); text-align: center; }
     </style>
 </head>
@@ -49,62 +49,61 @@
 
 <div class="card">
     <div class="header">
-        <h2>🚀 GitHub Deployer</h2>
-        <button class="theme-toggle" onclick="toggleTheme()">🌙 Dark Mode</button>
-    </div>
-    
-    <div class="setup-link">
-        🔑 <a href="https://github.com/settings/tokens/new?scopes=repo,workflow&description=WebDeployTool" target="_blank">トークンを新規発行する</a>
+        <h2>🌐 GitHub Deployer v9</h2>
+        <button class="theme-toggle" onclick="toggleTheme()">🌓 Theme</button>
     </div>
 
     <label>GitHub Access Token:</label>
-    <input type="password" id="token" placeholder="ghp_xxxx を貼り付け" oninput="saveToken()">
+    <input type="password" id="token" placeholder="ghp_xxxx" oninput="saveToken()">
     
     <label>リポジトリ名:</label>
-    <input type="text" id="repoName" placeholder="my-awesome-site">
+    <input type="text" id="repoName" placeholder="my-website">
 
-    <div id="fileContainer">
-        <label>デプロイするファイル:</label>
+    <div class="domain-area">
+        <label>独自ドメイン (任意) <span id="dnsStatus"></span></label>
+        <input type="text" id="customDomain" placeholder="example.com" oninput="clearDnsStatus()">
+        <button class="check-btn" onclick="checkDNS()">DNS設定を確認する</button>
+        
+        <div id="dnsGuide">
+            <strong>📋 期待される設定値:</strong>
+            <div id="dnsGuideContent"></div>
         </div>
-    <button class="add-file-btn" onclick="addFileRow('style.css', 'body { background: #f0f0f0; }')">+ ファイルを追加</button>
+    </div>
 
-    <button id="execBtn" class="main-btn" onclick="run()">全ファイルをデプロイ！</button>
+    <div id="fileContainer"></div>
+    <button class="add-file-btn" onclick="addFileRow()">+ ファイルを追加</button>
+
+    <button id="execBtn" class="main-btn" onclick="run()">デプロイ開始</button>
 
     <div id="progressContainer">
         <div class="spinner"></div>
-        <div id="waitMsg">デプロイ完了まであと <span id="timer">60</span> 秒</div>
+        <div id="waitMsg">反映待ち... あと <span id="timer">60</span> 秒</div>
     </div>
-
     <div id="log"></div>
-    
     <div id="resultBox" class="result-box">
-        <b>✅ 公開されました！</b><br><br>
-        <a id="siteUrl" href="#" target="_blank" style="color: var(--primary); font-weight: bold;">サイトを確認する</a>
+        <b>✅ 完了しました！</b><br><br>
+        <a id="siteUrl" href="#" target="_blank" style="color: var(--primary); font-weight: bold;">サイトを確認</a>
     </div>
 </div>
 
 <script>
-    // --- 初期設定とテーマ切り替え ---
+    const GH_IPS = ['185.199.108.153', '185.199.109.153', '185.199.110.153', '185.199.111.153'];
+
     window.onload = () => {
         document.getElementById('token').value = localStorage.getItem('gh_token') || '';
-        const savedTheme = localStorage.getItem('theme') || 'light';
-        document.body.setAttribute('data-theme', savedTheme);
-        // 初期ファイルとしてindex.htmlを追加
-        addFileRow('index.html', '<!DOCTYPE html>\n<html>\n<body>\n  <h1>Hello Multi-files!</h1>\n</body>\n</html>', false);
+        document.body.setAttribute('data-theme', localStorage.getItem('theme') || 'light');
+        addFileRow('index.html', '<!DOCTYPE html>\n<html>\n<body>\n  <h1>DNS Check Tool Ready!</h1>\n</body>\n</html>', false);
     };
 
     function toggleTheme() {
-        const current = document.body.getAttribute('data-theme');
-        const next = current === 'light' ? 'dark' : 'light';
+        const next = document.body.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
         document.body.setAttribute('data-theme', next);
         localStorage.setItem('theme', next);
     }
 
-    function saveToken() {
-        localStorage.setItem('gh_token', document.getElementById('token').value);
-    }
+    function saveToken() { localStorage.setItem('gh_token', document.getElementById('token').value); }
+    function clearDnsStatus() { document.getElementById('dnsStatus').innerHTML = ''; }
 
-    // --- ファイル行の動的追加/削除 ---
     function addFileRow(name = '', content = '', removable = true) {
         const container = document.getElementById('fileContainer');
         const div = document.createElement('div');
@@ -112,9 +111,61 @@
         div.innerHTML = `
             ${removable ? '<button class="remove-btn" onclick="this.parentElement.remove()">削除</button>' : ''}
             <input type="text" class="filename" placeholder="filename.html" value="${name}">
-            <textarea class="filecontent" rows="4" placeholder="コードをここに貼り付け">${content}</textarea>
+            <textarea class="filecontent" rows="3">${content}</textarea>
         `;
         container.appendChild(div);
+    }
+
+    // --- DNS診断機能 ---
+    async function checkDNS() {
+        const domain = document.getElementById('customDomain').value.trim();
+        const token = document.getElementById('token').value.trim();
+        const statusEl = document.getElementById('dnsStatus');
+        const guideEl = document.getElementById('dnsGuide');
+        const guideContent = document.getElementById('dnsGuideContent');
+
+        if (!domain) return alert("ドメインを入力してください");
+        
+        statusEl.innerHTML = '<span class="status-badge">診断中...</span>';
+        
+        try {
+            // ユーザー名の取得（CNAMEの期待値計算用）
+            const userRes = await fetch('https://api.github.com/user', { headers: {'Authorization': `token ${token}`} });
+            if (!userRes.ok) throw new Error("トークンを先に正しく入力してください");
+            const username = (await userRes.json()).login;
+            
+            const isSub = domain.split('.').length > 2;
+            const expectedCname = `${username}.github.io`;
+            
+            // Cloudflare DNS APIを使用して現在のレコードを取得
+            const type = isSub ? 'CNAME' : 'A';
+            const res = await fetch(`https://cloudflare-dns.com/query?name=${domain}&type=${type}`, {
+                headers: { 'Accept': 'application/dns-json' }
+            });
+            const data = await res.json();
+            const records = data.Answer ? data.Answer.map(a => a.data.replace(/\.$/, '')) : [];
+
+            // 判定
+            let isOk = false;
+            if (isSub) {
+                isOk = records.includes(expectedCname);
+            } else {
+                isOk = records.some(r => GH_IPS.includes(r));
+            }
+
+            // ガイドの表示
+            guideEl.style.display = 'block';
+            guideContent.innerHTML = isSub 
+                ? `現在: <code>${records[0] || 'なし'}</code><br>期待: <code>${expectedCname}</code> (CNAME)`
+                : `現在: <code>${records.join(', ') || 'なし'}</code><br>期待: GitHub IP群 (Aレコード)`;
+
+            statusEl.innerHTML = isOk 
+                ? '<span class="status-badge status-ok">✅ 設定OK</span>' 
+                : '<span class="status-badge status-ng">❌ 設定不一致</span>';
+
+        } catch (err) {
+            statusEl.innerHTML = `<span class="status-badge status-ng">エラー: ${err.message}</span>`;
+        }
     }
 
     function addLog(msg) {
@@ -123,99 +174,72 @@
         log.scrollTop = log.scrollHeight;
     }
 
-    // --- メイン処理 ---
     async function run() {
         const token = document.getElementById('token').value.replace(/[\s\u3000]/g, '');
         const repoName = document.getElementById('repoName').value.trim();
+        const customDomain = document.getElementById('customDomain').value.trim();
         const btn = document.getElementById('execBtn');
         const fileItems = document.querySelectorAll('.file-item');
 
-        if (!token || !repoName) return alert("トークンとリポジトリ名が必要です");
-        if (fileItems.length === 0) return alert("ファイルがありません");
+        if (!token || !repoName) return alert("必須項目を入力してください");
 
         btn.disabled = true;
         document.getElementById('resultBox').style.display = 'none';
         document.getElementById('log').innerHTML = '';
-        
-        const headers = { 
-            'Authorization': `token ${token}`,
-            'Accept': 'application/vnd.github+json'
-        };
+        const headers = { 'Authorization': `token ${token}`, 'Accept': 'application/vnd.github+json' };
 
         try {
-            // 1. ユーザー確認
-            addLog("GitHubに接続中...");
+            addLog("認証中...");
             const userRes = await fetch('https://api.github.com/user', { headers });
-            if (!userRes.ok) throw new Error("トークンが無効です");
             const username = (await userRes.json()).login;
 
-            // 2. リポジトリ確認 & 作成
+            addLog("リポジトリ・ファイル処理中...");
             const checkRepo = await fetch(`https://api.github.com/repos/${username}/${repoName}`, { headers });
-            if (checkRepo.ok) {
-                if (!window.confirm("リポジトリが既存です。ファイルを上書きしますか？")) {
-                    addLog("中止しました");
-                    btn.disabled = false;
-                    return;
-                }
-            } else {
-                addLog("新規リポジトリを作成中...");
+            if (!checkRepo.ok) {
                 await fetch('https://api.github.com/user/repos', {
-                    method: 'POST', headers,
-                    body: JSON.stringify({ name: repoName, auto_init: true })
+                    method: 'POST', headers, body: JSON.stringify({ name: repoName, auto_init: true })
                 });
             }
 
-            // 3. 全ファイルのアップロード
-            for (const item of fileItems) {
-                const name = item.querySelector('.filename').value.trim();
-                const content = item.querySelector('.filecontent').value;
-                if (!name) continue;
+            const files = Array.from(fileItems).map(i => ({
+                name: i.querySelector('.filename').value.trim(),
+                content: i.querySelector('.filecontent').value
+            }));
+            if (customDomain) files.push({ name: 'CNAME', content: customDomain });
 
-                addLog(`ファイル送信中: ${name}...`);
-                
-                // SHA取得
-                const fCheck = await fetch(`https://api.github.com/repos/${username}/${repoName}/contents/${name}`, { headers });
+            for (const f of files) {
+                if (!f.name) continue;
+                const fCheck = await fetch(`https://api.github.com/repos/${username}/${repoName}/contents/${f.name}`, { headers });
                 let sha = fCheck.ok ? (await fCheck.json()).sha : null;
-
-                const encoded = btoa(unescape(encodeURIComponent(content)));
-                const upRes = await fetch(`https://api.github.com/repos/${username}/${repoName}/contents/${name}`, {
-                    method: 'PUT',
-                    headers,
-                    body: JSON.stringify({ message: `Update ${name}`, content: encoded, sha: sha })
+                await fetch(`https://api.github.com/repos/${username}/${repoName}/contents/${f.name}`, {
+                    method: 'PUT', headers,
+                    body: JSON.stringify({ message: `Deploy ${f.name}`, content: btoa(unescape(encodeURIComponent(f.content))), sha: sha })
                 });
-                if (!upRes.ok) throw new Error(`${name} のアップロードに失敗`);
             }
 
-            // 4. Pages有効化
-            addLog("GitHub Pages 設定を確認...");
+            addLog("GitHub Pages 設定中...");
+            await new Promise(r => setTimeout(r, 2000));
             await fetch(`https://api.github.com/repos/${username}/${repoName}/pages`, {
-                method: 'POST', headers,
-                body: JSON.stringify({ source: { branch: "main", path: "/" } })
+                method: 'POST', headers, body: JSON.stringify({ source: { branch: "main", path: "/" } })
             });
+            if (customDomain) {
+                await fetch(`https://api.github.com/repos/${username}/${repoName}/pages`, {
+                    method: 'PUT', headers, body: JSON.stringify({ cname: customDomain })
+                });
+            }
 
-            // 5. カウントダウン
             document.getElementById('progressContainer').style.display = 'block';
-            let seconds = 60;
-            const timer = setInterval(() => {
-                seconds--;
-                document.getElementById('timer').innerText = seconds;
-                if (seconds <= 0) clearInterval(timer);
-            }, 1000);
-
+            let sec = 60;
+            const timer = setInterval(() => { document.getElementById('timer').innerText = --sec; if(sec<=0) clearInterval(timer); }, 1000);
             await new Promise(r => setTimeout(r, 60000));
 
-            const siteUrl = `https://${username}.github.io/${repoName}/`;
-            document.getElementById('siteUrl').href = siteUrl;
-            document.getElementById('siteUrl').innerText = siteUrl;
+            const finalUrl = customDomain ? `https://${customDomain}` : `https://${username}.github.io/${repoName}/`;
+            document.getElementById('siteUrl').href = finalUrl;
+            document.getElementById('siteUrl').innerText = finalUrl;
             document.getElementById('resultBox').style.display = 'block';
-            addLog("✅ 全ファイルのデプロイに成功しました！");
+            addLog("✅ Deployment Successful!");
 
-        } catch (err) {
-            addLog(`❌ エラー: ${err.message}`);
-        } finally {
-            btn.disabled = false;
-            document.getElementById('progressContainer').style.display = 'none';
-        }
+        } catch (err) { addLog(`❌: ${err.message}`); } finally { btn.disabled = false; document.getElementById('progressContainer').style.display = 'none'; }
     }
 </script>
 </body>
