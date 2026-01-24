@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GitHub Instant Deployer v11</title>
+    <title>GitHub Instant Deployer v11.1</title>
     <style>
         :root {
             --bg: #f6f8fa; 
@@ -63,7 +63,7 @@
             font-weight: bold; 
             font-size: 0.9rem; 
         }
-        input, textarea { 
+        input, textarea, select { 
             width: 100%; 
             padding: 12px; 
             margin-top: 5px; 
@@ -188,13 +188,26 @@
             border: 2px solid var(--primary); 
             text-align: center; 
         }
+        .result-link {
+            display: block;
+            margin: 10px 0;
+            padding: 10px;
+            background: #f0f7ff;
+            border-radius: 6px;
+            text-decoration: none;
+            color: var(--accent);
+            font-weight: bold;
+            font-size: 0.9rem;
+            border: 1px solid var(--border);
+        }
+        .result-link:hover { background: #e1efff; }
     </style>
 </head>
 <body>
 
 <div class="card">
     <div class="header">
-        <h2>🌐 GitHub Deployer v11</h2>
+        <h2>🌐 GitHub Deployer v11.1</h2>
     </div>
 
     <div class="setup-link">
@@ -207,6 +220,12 @@
     
     <label>リポジトリ名:</label>
     <input type="text" id="repoName" placeholder="my-website">
+
+    <label>公開設定:</label>
+    <select id="repoVisibility">
+        <option value="false">Public (誰でも閲覧可能)</option>
+        <option value="true">Private (自分のみ / 非公開)</option>
+    </select>
 
     <div class="domain-area">
         <label>独自ドメイン (任意) <span id="dnsStatus"></span></label>
@@ -230,8 +249,9 @@
     </div>
     <div id="log"></div>
     <div id="resultBox" class="result-box">
-        <b>✅ 完了しました！</b><br><br>
-        <a id="siteUrl" href="#" target="_blank" style="color: var(--primary); font-weight: bold;">サイトを確認</a>
+        <b>✅ 完了しました！</b><br>
+        <a id="siteUrl" class="result-link" target="_blank">🔗 サイトを確認 (GitHub Pages)</a>
+        <a id="repoUrl" class="result-link" target="_blank" style="background: #f6f8fa; color: #24292f;">📁 GitHubリポジトリを見る</a>
     </div>
 </div>
 
@@ -305,6 +325,7 @@
         const token = document.getElementById('token').value.replace(/[\s\u3000]/g, '');
         const repoName = document.getElementById('repoName').value.trim();
         const customDomain = document.getElementById('customDomain').value.trim();
+        const isPrivate = document.getElementById('repoVisibility').value === 'true';
         const btn = document.getElementById('execBtn');
         const fileItems = document.querySelectorAll('.file-item');
 
@@ -323,22 +344,28 @@
             if (!userRes.ok) throw new Error("トークンが無効です");
             const username = (await userRes.json()).login;
 
+            let finalRepoUrl = "";
+
             // 2. リポジトリ重複チェック
             addLog(`リポジトリ「${repoName}」を確認中...`);
             const checkRepo = await fetch(`https://api.github.com/repos/${username}/${repoName}`, { headers });
             
             if (checkRepo.ok) {
+                const repoData = await checkRepo.json();
+                finalRepoUrl = repoData.html_url;
                 if (!window.confirm(`リポジトリ「${repoName}」は既に存在します。上書きしますか？`)) {
                     addLog("キャンセルされました");
                     btn.disabled = false;
                     return;
                 }
             } else {
-                addLog("新規リポジトリを作成中...");
+                addLog(`新規リポジトリ(${isPrivate ? 'Private' : 'Public'})を作成中...`);
                 const createRes = await fetch('https://api.github.com/user/repos', {
-                    method: 'POST', headers, body: JSON.stringify({ name: repoName, auto_init: true })
+                    method: 'POST', headers, body: JSON.stringify({ name: repoName, auto_init: true, private: isPrivate })
                 });
                 if (!createRes.ok) throw new Error("リポジトリ作成に失敗しました");
+                const createData = await createRes.json();
+                finalRepoUrl = createData.html_url;
             }
 
             // 3. ファイル処理リスト作成
@@ -385,15 +412,17 @@
             document.getElementById('progressContainer').style.display = 'block';
             let sec = 60;
             const timer = setInterval(() => {
-                document.getElementById('timer').innerText = --sec;
+                const timerEl = document.getElementById('timer');
+                if (timerEl) timerEl.innerText = --sec;
                 if(sec <= 0) clearInterval(timer);
             }, 1000);
 
             await new Promise(r => setTimeout(r, 60000));
 
-            const finalUrl = customDomain ? `https://${customDomain}` : `https://${username}.github.io/${repoName}/`;
-            document.getElementById('siteUrl').href = finalUrl;
-            document.getElementById('siteUrl').innerText = finalUrl;
+            // 結果の表示
+            const finalPagesUrl = customDomain ? `https://${customDomain}` : `https://${username}.github.io/${repoName}/`;
+            document.getElementById('siteUrl').href = finalPagesUrl;
+            document.getElementById('repoUrl').href = finalRepoUrl;
             document.getElementById('resultBox').style.display = 'block';
             addLog("✅ すべての工程が完了しました！");
 
