@@ -2,44 +2,72 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>GitHub Instant Deployer v2</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GitHub Instant Deployer v4</title>
     <style>
-        body { font-family: sans-serif; max-width: 700px; margin: 40px auto; padding: 20px; background: #f6f8fa; }
-        .card { background: white; padding: 25px; border-radius: 8px; border: 1px solid #d0d7de; }
-        input, textarea { width: 100%; padding: 10px; margin: 10px 0; border: 1px solid #d0d7de; border-radius: 6px; box-sizing: border-box; }
-        button { background: #2da44e; color: white; border: none; padding: 12px; border-radius: 6px; cursor: pointer; width: 100%; font-weight: bold; }
-        button:disabled { background: #94d3a2; }
-        #log { margin-top: 20px; font-size: 12px; background: #000; color: #adbac7; padding: 15px; border-radius: 6px; height: 150px; overflow-y: auto; white-space: pre-wrap; }
-        .result-box { margin-top: 20px; padding: 15px; border-radius: 6px; display: none; border: 2px solid #2da44e; text-align: center; }
-        .error-msg { color: #cf222e; font-weight: bold; margin-top: 5px; }
+        :root { --primary: #2da44e; --bg: #f6f8fa; --text: #24292f; }
+        body { font-family: -apple-system, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 15px; }
+        .card { background: white; padding: 20px; border-radius: 12px; border: 1px solid #d0d7de; max-width: 500px; margin: auto; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+        h2 { font-size: 1.4rem; margin-top: 0; text-align: center; }
+        
+        .setup-link { background: #fff8c5; padding: 12px; border-radius: 8px; font-size: 0.9rem; margin-bottom: 20px; border: 1px solid #d4a017; }
+        .setup-link a { color: #0969da; font-weight: bold; text-decoration: underline; }
+
+        label { display: block; margin-top: 15px; font-weight: bold; font-size: 0.9rem; }
+        input, textarea { width: 100%; padding: 12px; margin-top: 5px; border: 1px solid #d0d7de; border-radius: 8px; box-sizing: border-box; font-size: 16px; /* スマホでのズーム防止 */ }
+        
+        button { background: var(--primary); color: white; border: none; padding: 16px; border-radius: 8px; cursor: pointer; width: 100%; font-weight: bold; font-size: 1.1rem; margin-top: 20px; transition: 0.3s; }
+        button:disabled { background: #94d3a2; cursor: not-allowed; }
+
+        #progressContainer { display: none; margin-top: 20px; text-align: center; }
+        .spinner { border: 4px solid rgba(0,0,0,0.1); border-left-color: var(--primary); border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; margin: 0 auto 10px; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        #log { margin-top: 20px; font-size: 0.8rem; background: #24292f; color: #adbac7; padding: 12px; border-radius: 8px; height: 120px; overflow-y: auto; font-family: monospace; white-space: pre-wrap; }
+        
+        .result-box { margin-top: 20px; padding: 20px; border-radius: 10px; display: none; border: 3px solid var(--primary); background: #dafbe1; text-align: center; }
+        .result-box a { color: #1a7f37; font-weight: bold; font-size: 1.1rem; word-break: break-all; }
     </style>
 </head>
 <body>
 
 <div class="card">
-    <h2>🚀 GitHub Deployer (安定版)</h2>
+    <h2>🚀 爆速デプロイツール</h2>
     
+    <div class="setup-link">
+        🔑 <b>トークンが未発行の方へ:</b><br>
+        <a href="https://github.com/settings/tokens/new?scopes=repo,workflow&description=WebDeployTool" target="_blank">
+            ここをクリックしてトークンを発行
+        </a><br>
+        <small>※「Generate token」を押して出たコードを下に貼ってください。</small>
+    </div>
+
     <label>GitHub Access Token:</label>
-    <input type="password" id="token" placeholder="ghp_xxxxxxxxxxxx" oninput="saveToken()">
+    <input type="password" id="token" placeholder="ghp_xxxx を貼り付け" oninput="saveToken()">
     
-    <label>リポジトリ名:</label>
+    <label>リポジトリ名 (英数字のみ):</label>
     <input type="text" id="repoName" placeholder="my-project">
 
     <label>index.html の内容:</label>
-    <textarea id="content" rows="5"><!DOCTYPE html><html><body><h1>Deploy Success!</h1></body></html></textarea>
+    <textarea id="content" rows="4"><!DOCTYPE html><html><body style="text-align:center;"><h1>🎉 Deploy Success!</h1></body></html></textarea>
 
-    <button id="execBtn" onclick="run()">デプロイ実行</button>
+    <button id="execBtn" onclick="run()">デプロイを実行する</button>
 
-    <div id="log">ログがここに表示されます...</div>
+    <div id="progressContainer">
+        <div class="spinner"></div>
+        <div id="waitMsg">サーバー準備中... あと <span id="timer">60</span> 秒</div>
+    </div>
+
+    <div id="log">ここにログが表示されます</div>
     
     <div id="resultBox" class="result-box">
-        <b>🎉 処理が完了しました！</b><br>
-        <a id="siteUrl" href="#" target="_blank" style="word-break: break-all;"></a><br>
-        <p><small>※反映まで1〜3分かかる場合があります。404が出る場合は少し待ってから再読み込みしてください。</small></p>
+        <b>✨ 公開準備が整いました！</b><br><br>
+        <a id="siteUrl" href="#" target="_blank">サイトを見る</a>
     </div>
 </div>
 
 <script>
+    // 保存されたトークンを読み込み
     window.onload = () => {
         document.getElementById('token').value = localStorage.getItem('gh_token') || '';
     };
@@ -56,16 +84,20 @@
     }
 
     async function run() {
-        const token = document.getElementById('token').value;
+        const rawToken = document.getElementById('token').value;
+        const token = rawToken.replace(/[\s\u3000]/g, ''); // 空白を完全に除去
         const repoName = document.getElementById('repoName').value.trim();
         const content = document.getElementById('content').value;
         const btn = document.getElementById('execBtn');
+        const progress = document.getElementById('progressContainer');
         const resultBox = document.getElementById('resultBox');
 
-        if (!token || !repoName) return alert("入力が足りません");
+        if (!token || !repoName) return alert("トークンとリポジトリ名を入力してください");
 
+        // UI初期化
         btn.disabled = true;
         resultBox.style.display = 'none';
+        progress.style.display = 'block';
         document.getElementById('log').innerHTML = '';
         
         const headers = { 
@@ -74,85 +106,63 @@
         };
 
         try {
-            // 1. ユーザー名取得
-            addLog("ユーザー取得中...");
+            // 1. ユーザー確認
+            addLog("認証情報を確認中...");
             const userRes = await fetch('https://api.github.com/user', { headers });
-            if (!userRes.ok) throw new Error(`トークンが無効です (${userRes.status})`);
+            if (!userRes.ok) throw new Error("トークンが無効です");
             const user = await userRes.json();
             const username = user.login;
-            addLog(`ユーザー: ${username}`);
 
             // 2. リポジトリ作成
             addLog(`リポジトリ「${repoName}」を作成中...`);
-            const repoRes = await fetch('https://api.github.com/user/repos', {
+            await fetch('https://api.github.com/user/repos', {
                 method: 'POST',
                 headers,
                 body: JSON.stringify({ name: repoName, auto_init: true })
             });
-            if (repoRes.status === 422) {
-                addLog("注意: 同名のリポジトリが既に存在します。上書きを試みます。");
-            } else if (!repoRes.ok) {
-                throw new Error("リポジトリ作成に失敗しました。");
-            }
 
             // 3. index.html 作成
-            addLog("index.html を作成中...");
+            addLog("index.html を書き込み中...");
             const encodedContent = btoa(unescape(encodeURIComponent(content)));
-            // 既存ファイルがある場合を考慮して現在のSHAを取得（上書き対応）
-            const currentFile = await fetch(`https://api.github.com/repos/${username}/${repoName}/contents/index.html`, { headers });
-            let sha = "";
-            if (currentFile.ok) {
-                const fileData = await currentFile.json();
-                sha = fileData.sha;
-            }
-
-            const fileRes = await fetch(`https://api.github.com/repos/${username}/${repoName}/contents/index.html`, {
+            await fetch(`https://api.github.com/repos/${username}/${repoName}/contents/index.html`, {
                 method: 'PUT',
                 headers,
-                body: JSON.stringify({ 
-                    message: "Deploy from web tool", 
-                    content: encodedContent,
-                    sha: sha 
-                })
+                body: JSON.stringify({ message: "Initial commit", content: encodedContent })
             });
-            if (!fileRes.ok) throw new Error("ファイルの保存に失敗しました。");
 
-            // 4. GitHub Pages 有効化 (リトライ処理付き)
-            addLog("GitHub Pages を有効化しています (最大30秒待機)...");
-            let pagesActivated = false;
-            for (let i = 0; i < 5; i++) {
-                await new Promise(r => setTimeout(r, 5000)); // 5秒待機
-                const pRes = await fetch(`https://api.github.com/repos/${username}/${repoName}/pages`, {
-                    method: 'POST',
-                    headers,
-                    body: JSON.stringify({ source: { branch: "main", path: "/" } })
-                });
-                if (pRes.ok || pRes.status === 201 || pRes.status === 409) {
-                    pagesActivated = true;
-                    addLog("GitHub Pages の有効化に成功しました！");
-                    break;
-                }
-                addLog(`有効化リトライ中... (${i+1}/5)`);
-            }
+            // 4. GitHub Pages 有効化
+            addLog("GitHub Pages を有効化中...");
+            await fetch(`https://api.github.com/repos/${username}/${repoName}/pages`, {
+                method: 'POST',
+                headers,
+                body: JSON.stringify({ source: { branch: "main", path: "/" } })
+            });
 
-            // 5. 結果表示 (Pagesが失敗してもURL自体は決まっているので表示する)
-            const siteUrl = `https://${username}.github.io/${repoName}/`;
-            const urlLink = document.getElementById('siteUrl');
-            urlLink.href = siteUrl;
-            urlLink.innerText = siteUrl;
-            resultBox.style.display = 'block';
+            // 5. 60秒の待機（カウントダウン）
+            addLog("最終調整中。1分ほどお待ちください...");
+            let seconds = 60;
+            const timerSpan = document.getElementById('timer');
             
-            if (!pagesActivated) {
-                addLog("⚠️ Pagesの自動有効化がタイムアウトしました。GitHub画面から手動で設定が必要かもしれません。", true);
-            } else {
-                addLog("✅ すべて完了！");
-            }
+            const countdown = setInterval(() => {
+                seconds--;
+                timerSpan.innerText = seconds;
+                if (seconds <= 0) clearInterval(countdown);
+            }, 1000);
+
+            await new Promise(r => setTimeout(r, 60000));
+
+            // 完了表示
+            const siteUrl = `https://${username}.github.io/${repoName}/`;
+            document.getElementById('siteUrl').href = siteUrl;
+            document.getElementById('siteUrl').innerText = siteUrl;
+            resultBox.style.display = 'block';
+            addLog("✅ デプロイ完了しました！");
 
         } catch (err) {
             addLog(err.message, true);
-            console.error(err);
         } finally {
             btn.disabled = false;
+            progress.style.display = 'none';
         }
     }
 </script>
