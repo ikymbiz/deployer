@@ -3,59 +3,198 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GitHub Instant Deployer v10</title>
+    <title>GitHub Instant Deployer v11</title>
     <style>
         :root {
-            --bg: #f6f8fa; --card-bg: #ffffff; --text: #24292f;
-            --border: #d0d7de; --primary: #2da44e; --input-bg: #ffffff;
-            --log-bg: #24292f; --log-text: #adbac7; --accent: #0969da;
-            --guide-bg: #f0f7ff; --error: #cf222e; --success: #2da44e;
+            --bg: #f6f8fa; 
+            --card-bg: #ffffff; 
+            --text: #24292f;
+            --border: #d0d7de; 
+            --primary: #2da44e; 
+            --input-bg: #ffffff;
+            --log-bg: #24292f; 
+            --log-text: #adbac7; 
+            --accent: #0969da;
+            --guide-bg: #f0f7ff; 
+            --error: #cf222e;
         }
-        [data-theme="dark"] {
-            --bg: #0d1117; --card-bg: #161b22; --text: #c9d1d9;
-            --border: #30363d; --primary: #238636; --input-bg: #0d1117;
-            --log-bg: #010409; --log-text: #8b949e; --accent: #58a6ff;
-            --guide-bg: #111827;
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; 
+            background: var(--bg); 
+            color: var(--text); 
+            margin: 0; 
+            padding: 15px; 
         }
-        body { font-family: -apple-system, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 15px; transition: 0.3s; }
-        .card { background: var(--card-bg); padding: 20px; border-radius: 12px; border: 1px solid var(--border); max-width: 600px; margin: auto; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
-        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
-        .theme-toggle { cursor: pointer; background: none; border: 1px solid var(--border); color: var(--text); padding: 5px 10px; border-radius: 6px; font-size: 0.8rem; }
+        .card { 
+            background: var(--card-bg); 
+            padding: 20px; 
+            border-radius: 12px; 
+            border: 1px solid var(--border); 
+            max-width: 600px; 
+            margin: auto; 
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1); 
+        }
+        .header { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            margin-bottom: 15px; 
+        }
         
-        /* 追加したリンクのスタイル */
-        .setup-link { background: #fff8c5; color: #24292f; padding: 12px; border-radius: 8px; font-size: 0.85rem; margin-bottom: 20px; border: 1px solid #d4a017; text-align: center; }
-        [data-theme="dark"] .setup-link { background: #332b00; color: #f0e050; border-color: #6e5e00; }
-        .setup-link a { color: #0969da; font-weight: bold; text-decoration: underline; }
-        [data-theme="dark"] .setup-link a { color: #58a6ff; }
+        .setup-link { 
+            background: #fff8c5; 
+            color: #24292f; 
+            padding: 12px; 
+            border-radius: 8px; 
+            font-size: 0.85rem; 
+            margin-bottom: 20px; 
+            border: 1px solid #d4a017; 
+            text-align: center; 
+        }
+        .setup-link a { 
+            color: #0969da; 
+            font-weight: bold; 
+            text-decoration: underline; 
+        }
 
-        label { display: block; margin-top: 15px; font-weight: bold; font-size: 0.9rem; }
-        input, textarea { width: 100%; padding: 12px; margin-top: 5px; border: 1px solid var(--border); border-radius: 8px; box-sizing: border-box; font-size: 16px; background: var(--input-bg); color: var(--text); }
+        label { 
+            display: block; 
+            margin-top: 15px; 
+            font-weight: bold; 
+            font-size: 0.9rem; 
+        }
+        input, textarea { 
+            width: 100%; 
+            padding: 12px; 
+            margin-top: 5px; 
+            border: 1px solid var(--border); 
+            border-radius: 8px; 
+            box-sizing: border-box; 
+            font-size: 16px; 
+            background: var(--input-bg); 
+            color: var(--text); 
+        }
         
-        .domain-area { background: rgba(9, 105, 218, 0.05); padding: 15px; border-radius: 8px; border: 1px dashed var(--accent); margin-top: 20px; }
-        .check-btn { background: var(--accent); color: white; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 0.8rem; margin-top: 10px; font-weight: bold; }
-        #dnsGuide { display: none; margin-top: 15px; padding: 12px; background: var(--guide-bg); border-radius: 8px; font-size: 0.85rem; border: 1px solid var(--accent); }
-        .status-badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: bold; margin-left: 10px; }
+        .domain-area { 
+            background: rgba(9, 105, 218, 0.05); 
+            padding: 15px; 
+            border-radius: 8px; 
+            border: 1px dashed var(--accent); 
+            margin-top: 20px; 
+        }
+        .check-btn { 
+            background: var(--accent); 
+            color: white; 
+            border: none; 
+            padding: 8px 12px; 
+            border-radius: 6px; 
+            cursor: pointer; 
+            font-size: 0.8rem; 
+            margin-top: 10px; 
+            font-weight: bold; 
+        }
+        #dnsGuide { 
+            display: none; 
+            margin-top: 15px; 
+            padding: 12px; 
+            background: var(--guide-bg); 
+            border-radius: 8px; 
+            font-size: 0.85rem; 
+            border: 1px solid var(--accent); 
+        }
+        .status-badge { 
+            display: inline-block; 
+            padding: 2px 8px; 
+            border-radius: 12px; 
+            font-size: 0.75rem; 
+            font-weight: bold; 
+            margin-left: 10px; 
+        }
         .status-ok { background: #dafbe1; color: #1a7f37; }
         .status-ng { background: #ffeef0; color: #cf222e; }
 
-        .file-item { border: 1px solid var(--border); padding: 15px; border-radius: 8px; margin-top: 10px; position: relative; }
-        .remove-btn { position: absolute; top: 10px; right: 10px; color: var(--error); cursor: pointer; border: none; background: none; font-size: 0.8rem; }
-        .add-file-btn { background: none; border: 1px dashed var(--border); color: var(--text); width: 100%; padding: 10px; margin-top: 10px; border-radius: 8px; cursor: pointer; }
+        .file-item { 
+            border: 1px solid var(--border); 
+            padding: 15px; 
+            border-radius: 8px; 
+            margin-top: 10px; 
+            position: relative; 
+        }
+        .remove-btn { 
+            position: absolute; 
+            top: 10px; 
+            right: 10px; 
+            color: var(--error); 
+            cursor: pointer; 
+            border: none; 
+            background: none; 
+            font-size: 0.8rem; 
+            font-weight: bold; 
+        }
+        .add-file-btn { 
+            background: none; 
+            border: 1px dashed var(--border); 
+            color: var(--text); 
+            width: 100%; 
+            padding: 10px; 
+            margin-top: 10px; 
+            border-radius: 8px; 
+            cursor: pointer; 
+        }
 
-        button.main-btn { background: var(--primary); color: white; border: none; padding: 16px; border-radius: 8px; cursor: pointer; width: 100%; font-weight: bold; font-size: 1.1rem; margin-top: 25px; }
-        #progressContainer { display: none; margin-top: 20px; text-align: center; }
-        .spinner { border: 4px solid rgba(0,0,0,0.1); border-left-color: var(--primary); border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; margin: 0 auto 10px; }
+        button.main-btn { 
+            background: var(--primary); 
+            color: white; 
+            border: none; 
+            padding: 16px; 
+            border-radius: 8px; 
+            cursor: pointer; 
+            width: 100%; 
+            font-weight: bold; 
+            font-size: 1.1rem; 
+            margin-top: 25px; 
+        }
+        #progressContainer { 
+            display: none; 
+            margin-top: 20px; 
+            text-align: center; 
+        }
+        .spinner { 
+            border: 4px solid rgba(0,0,0,0.1); 
+            border-left-color: var(--primary); 
+            border-radius: 50%; 
+            width: 30px; 
+            height: 30px; 
+            animation: spin 1s linear infinite; 
+            margin: 0 auto 10px; 
+        }
         @keyframes spin { to { transform: rotate(360deg); } }
-        #log { margin-top: 20px; font-size: 0.75rem; background: var(--log-bg); color: var(--log-text); padding: 12px; border-radius: 8px; height: 100px; overflow-y: auto; font-family: monospace; }
-        .result-box { margin-top: 20px; padding: 20px; border-radius: 10px; display: none; border: 2px solid var(--primary); text-align: center; }
+        #log { 
+            margin-top: 20px; 
+            font-size: 0.75rem; 
+            background: var(--log-bg); 
+            color: var(--log-text); 
+            padding: 12px; 
+            border-radius: 8px; 
+            height: 120px; 
+            overflow-y: auto; 
+            font-family: monospace; 
+        }
+        .result-box { 
+            margin-top: 20px; 
+            padding: 20px; 
+            border-radius: 10px; 
+            display: none; 
+            border: 2px solid var(--primary); 
+            text-align: center; 
+        }
     </style>
 </head>
-<body data-theme="light">
+<body>
 
 <div class="card">
     <div class="header">
-        <h2>🌐 GitHub Deployer v10</h2>
-        <button class="theme-toggle" onclick="toggleTheme()">🌓 Theme</button>
+        <h2>🌐 GitHub Deployer v11</h2>
     </div>
 
     <div class="setup-link">
@@ -101,15 +240,8 @@
 
     window.onload = () => {
         document.getElementById('token').value = localStorage.getItem('gh_token') || '';
-        document.body.setAttribute('data-theme', localStorage.getItem('theme') || 'light');
-        addFileRow('index.html', '<!DOCTYPE html>\n<html>\n<head><meta charset="utf-8"></head>\n<body>\n  <h1>Deployment Success!</h1>\n</body>\n</html>', false);
+        addFileRow('index.html', '<!DOCTYPE html>\n<html>\n<head><meta charset="utf-8"></head>\n<body>\n  <h1>Ready to Deploy!</h1>\n</body>\n</html>', false);
     };
-
-    function toggleTheme() {
-        const next = document.body.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
-        document.body.setAttribute('data-theme', next);
-        localStorage.setItem('theme', next);
-    }
 
     function saveToken() { localStorage.setItem('gh_token', document.getElementById('token').value); }
     function clearDnsStatus() { document.getElementById('dnsStatus').innerHTML = ''; }
@@ -138,7 +270,7 @@
         
         try {
             const userRes = await fetch('https://api.github.com/user', { headers: {'Authorization': `token ${token}`} });
-            if (!userRes.ok) throw new Error("先にトークンを入力してください");
+            if (!userRes.ok) throw new Error("トークンを先に入力してください");
             const username = (await userRes.json()).login;
             
             const isSub = domain.split('.').length > 2;
@@ -176,7 +308,8 @@
         const btn = document.getElementById('execBtn');
         const fileItems = document.querySelectorAll('.file-item');
 
-        if (!token || !repoName) return alert("必須項目を入力してください");
+        if (!token || !repoName) return alert("トークンとリポジトリ名が必要です");
+        if (fileItems.length === 0) return alert("ファイルがありません");
 
         btn.disabled = true;
         document.getElementById('resultBox').style.display = 'none';
@@ -184,36 +317,61 @@
         const headers = { 'Authorization': `token ${token}`, 'Accept': 'application/vnd.github+json' };
 
         try {
-            addLog("認証中...");
+            // 1. ユーザー認証
+            addLog("GitHubに接続中...");
             const userRes = await fetch('https://api.github.com/user', { headers });
+            if (!userRes.ok) throw new Error("トークンが無効です");
             const username = (await userRes.json()).login;
 
-            addLog("リポジトリ・ファイル処理中...");
+            // 2. リポジトリ重複チェック
+            addLog(`リポジトリ「${repoName}」を確認中...`);
             const checkRepo = await fetch(`https://api.github.com/repos/${username}/${repoName}`, { headers });
-            if (!checkRepo.ok) {
-                await fetch('https://api.github.com/user/repos', {
+            
+            if (checkRepo.ok) {
+                if (!window.confirm(`リポジトリ「${repoName}」は既に存在します。上書きしますか？`)) {
+                    addLog("キャンセルされました");
+                    btn.disabled = false;
+                    return;
+                }
+            } else {
+                addLog("新規リポジトリを作成中...");
+                const createRes = await fetch('https://api.github.com/user/repos', {
                     method: 'POST', headers, body: JSON.stringify({ name: repoName, auto_init: true })
                 });
+                if (!createRes.ok) throw new Error("リポジトリ作成に失敗しました");
             }
 
-            const files = Array.from(fileItems).map(i => ({
+            // 3. ファイル処理リスト作成
+            const filesToUpload = Array.from(fileItems).map(i => ({
                 name: i.querySelector('.filename').value.trim(),
                 content: i.querySelector('.filecontent').value
             }));
-            if (customDomain) files.push({ name: 'CNAME', content: customDomain });
+            if (customDomain) filesToUpload.push({ name: 'CNAME', content: customDomain });
 
-            for (const f of files) {
+            // 4. 各ファイルの重複(SHA)チェック & アップロード
+            for (const f of filesToUpload) {
                 if (!f.name) continue;
+                addLog(`ファイル処理中: ${f.name}...`);
+                
                 const fCheck = await fetch(`https://api.github.com/repos/${username}/${repoName}/contents/${f.name}`, { headers });
                 let sha = fCheck.ok ? (await fCheck.json()).sha : null;
-                await fetch(`https://api.github.com/repos/${username}/${repoName}/contents/${f.name}`, {
-                    method: 'PUT', headers,
-                    body: JSON.stringify({ message: `Deploy ${f.name}`, content: btoa(unescape(encodeURIComponent(f.content))), sha: sha })
+
+                const upRes = await fetch(`https://api.github.com/repos/${username}/${repoName}/contents/${f.name}`, {
+                    method: 'PUT',
+                    headers,
+                    body: JSON.stringify({ 
+                        message: `Deploy ${f.name} via WebTool`, 
+                        content: btoa(unescape(encodeURIComponent(f.content))), 
+                        sha: sha 
+                    })
                 });
+                if (!upRes.ok) throw new Error(`${f.name} のアップロードに失敗しました`);
             }
 
-            addLog("GitHub Pages 設定中...");
+            // 5. GitHub Pages 有効化・更新
+            addLog("GitHub Pages を設定中...");
             await new Promise(r => setTimeout(r, 2000));
+            
             await fetch(`https://api.github.com/repos/${username}/${repoName}/pages`, {
                 method: 'POST', headers, body: JSON.stringify({ source: { branch: "main", path: "/" } })
             });
@@ -223,18 +381,28 @@
                 });
             }
 
+            // 6. 反映待ちカウントダウン
             document.getElementById('progressContainer').style.display = 'block';
             let sec = 60;
-            const timer = setInterval(() => { document.getElementById('timer').innerText = --sec; if(sec<=0) clearInterval(timer); }, 1000);
+            const timer = setInterval(() => {
+                document.getElementById('timer').innerText = --sec;
+                if(sec <= 0) clearInterval(timer);
+            }, 1000);
+
             await new Promise(r => setTimeout(r, 60000));
 
             const finalUrl = customDomain ? `https://${customDomain}` : `https://${username}.github.io/${repoName}/`;
             document.getElementById('siteUrl').href = finalUrl;
             document.getElementById('siteUrl').innerText = finalUrl;
             document.getElementById('resultBox').style.display = 'block';
-            addLog("✅ Deployment Successful!");
+            addLog("✅ すべての工程が完了しました！");
 
-        } catch (err) { addLog(`❌: ${err.message}`); } finally { btn.disabled = false; document.getElementById('progressContainer').style.display = 'none'; }
+        } catch (err) { 
+            addLog(`❌ エラー: ${err.message}`); 
+        } finally { 
+            btn.disabled = false; 
+            document.getElementById('progressContainer').style.display = 'none'; 
+        }
     }
 </script>
 </body>
