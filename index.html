@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GitHub Instant Deployer v11.4</title>
-<script src="https://cdn.jsdelivr.net/npm/libsodium-wrappers@0.7.13/dist/browsers/sodium-wrappers.js"></script>
+    <title>GitHub Instant Deployer v11.5</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/libsodium-wrappers/0.7.13/sodium-wrappers.min.js"></script>
 
     <style>
         :root {
@@ -18,11 +18,10 @@
         .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
         .setup-link { background: var(--warning); color: #24292f; padding: 12px; border-radius: 8px; font-size: 0.85rem; margin-bottom: 20px; border: 1px solid #d4a017; text-align: center; }
         .setup-link a { color: var(--accent); font-weight: bold; }
-        
+
         label { display: block; margin-top: 15px; font-weight: bold; font-size: 0.9rem; }
         input, textarea, select { width: 100%; padding: 12px; margin-top: 5px; border: 1px solid var(--border); border-radius: 8px; box-sizing: border-box; font-size: 16px; background: var(--input-bg); color: var(--text); }
-        
-        /* 折りたたみドメイン設定 */
+
         details { border: 1px solid var(--border); border-radius: 8px; margin-top: 20px; background: rgba(9, 105, 218, 0.05); }
         summary { padding: 12px; font-weight: bold; cursor: pointer; outline: none; border-radius: 8px; }
         .domain-area { padding: 0 15px 15px 15px; }
@@ -32,12 +31,10 @@
         .status-ok { background: #dafbe1; color: #1a7f37; }
         .status-ng { background: #ffeef0; color: #cf222e; }
 
-        /* 環境変数セクション */
         .env-section { background: #f8f9fa; border: 1px solid var(--border); padding: 15px; border-radius: 8px; margin-top: 20px; }
         .env-item { display: flex; gap: 8px; margin-top: 8px; position: relative; }
         .env-item input { margin-top: 0; padding: 8px; font-size: 14px; }
-        
-        /* ファイルセクション */
+
         .file-item { border: 1px solid var(--border); padding: 15px; border-radius: 8px; margin-top: 10px; position: relative; }
         .remove-btn { position: absolute; top: 10px; right: 10px; color: var(--error); cursor: pointer; border: none; background: none; font-size: 0.8rem; font-weight: bold; }
         .add-btn { background: none; border: 1px dashed var(--border); color: var(--text); width: 100%; padding: 10px; margin-top: 10px; border-radius: 8px; cursor: pointer; }
@@ -54,7 +51,7 @@
 <body>
 
 <div class="card">
-    <div class="header"><h2>🌐 GitHub Deployer v11.4</h2></div>
+    <div class="header"><h2>🌐 GitHub Deployer v11.5</h2></div>
 
     <div class="setup-link">
         🔑 <a href="https://github.com/settings/tokens/new?scopes=repo,workflow&description=WebDeployTool" target="_blank">
@@ -123,23 +120,21 @@
     function addEnvRow(key = '', val = '') {
         const div = document.createElement('div');
         div.className = 'env-item';
-        div.innerHTML = `
-            <input type="text" class="env-key" placeholder="KEY" value="${key}">
-            <input type="text" class="env-val" placeholder="VALUE" value="${val}">
-            <button class="remove-btn" style="position:static" onclick="this.parentElement.remove()">×</button>
-        `;
+        div.innerHTML = `<input type="text" class="env-key" placeholder="KEY" value="${key}"><input type="text" class="env-val" placeholder="VALUE" value="${val}"><button class="remove-btn" style="position:static" onclick="this.parentElement.remove()">×</button>`;
         document.getElementById('envContainer').appendChild(div);
     }
 
     function addFileRow(name = '', content = '', removable = true) {
         const div = document.createElement('div');
         div.className = 'file-item';
-        div.innerHTML = `
-            ${removable ? '<button class="remove-btn" onclick="this.parentElement.remove()">削除</button>' : ''}
-            <input type="text" class="filename" placeholder="filename.html" value="${name}">
-            <textarea class="filecontent" rows="3">${content}</textarea>
-        `;
+        div.innerHTML = `${removable ? '<button class="remove-btn" onclick="this.parentElement.remove()">削除</button>' : ''}<input type="text" class="filename" placeholder="filename.html" value="${name}"><textarea class="filecontent" rows="3">${content}</textarea>`;
         document.getElementById('fileContainer').appendChild(div);
+    }
+
+    function addLog(msg) {
+        const log = document.getElementById('log');
+        log.innerHTML += `<div>> ${msg}</div>`;
+        log.scrollTop = log.scrollHeight;
     }
 
     async function checkDNS() {
@@ -167,22 +162,13 @@
         } catch (err) { statusEl.innerHTML = `<span class="status-badge status-ng">${err.message}</span>`; }
     }
 
-    function addLog(msg) {
-        const log = document.getElementById('log');
-        log.innerHTML += `<div>> ${msg}</div>`;
-        log.scrollTop = log.scrollHeight;
-    }
-
     async function run() {
-// もし libsodium という名前で読み込まれていたら sodium に代入する
-    if (typeof sodium === 'undefined') {
-        if (typeof libsodium !== 'undefined') {
-            window.sodium = libsodium;
-        } else {
-            alert("ライブラリの読み込みに失敗しました。ネット接続やURLを確認してください。");
-            return;
-        }
-    }
+        // ライブラリ存在チェックと初期化
+        const s = window.sodium || window.libsodium;
+        if (!s) return alert("ライブラリ(libsodium)がロードされていません。インターネット接続を確認してください。");
+        window.sodium = s;
+        await sodium.ready;
+
         const token = document.getElementById('token').value.replace(/[\s\u3000]/g, '');
         const repoName = document.getElementById('repoName').value.trim();
         const customDomain = document.getElementById('customDomain').value.trim();
@@ -193,24 +179,32 @@
         btn.disabled = true;
         document.getElementById('resultBox').style.display = 'none';
         document.getElementById('log').innerHTML = '';
-        const headers = { 'Authorization': `token ${token}`, 'Accept': 'application/vnd.github+json' };
+        const headers = { 
+            'Authorization': `Bearer ${token}`, 
+            'Accept': 'application/vnd.github+json',
+            'X-GitHub-Api-Version': '2022-11-28'
+        };
 
         try {
             addLog("GitHub認証中...");
             const userRes = await fetch('https://api.github.com/user', { headers });
+            if(!userRes.ok) throw new Error("GitHub認証に失敗しました。トークンを確認してください。");
             const username = (await userRes.json()).login;
 
-            addLog("リポジトリを準備中...");
-            const checkRepo = await fetch(`https://api.github.com/repos/${username}/${repoName}`, { headers });
-            if (checkRepo.ok && !window.confirm("リポジトリが既に存在します。上書きしますか？")) return;
+            addLog(`ユーザー: ${username} として実行中...`);
 
+            // リポジトリ確認/作成
+            let checkRepo = await fetch(`https://api.github.com/repos/${username}/${repoName}`, { headers });
             if (!checkRepo.ok) {
-                await fetch('https://api.github.com/user/repos', {
+                addLog("リポジトリを新規作成中...");
+                const createRes = await fetch('https://api.github.com/user/repos', {
                     method: 'POST', headers, body: JSON.stringify({ name: repoName, auto_init: true, private: isPrivate })
                 });
+                if(!createRes.ok) throw new Error("リポジトリ作成に失敗しました。");
+                await new Promise(r => setTimeout(r, 2000)); // 作成待機
             }
 
-            // ファイルアップロード
+            // ファイル転送
             const fileItems = document.querySelectorAll('.file-item');
             const files = Array.from(fileItems).map(i => ({
                 name: i.querySelector('.filename').value.trim(),
@@ -223,20 +217,24 @@
                 addLog(`ファイル転送: ${f.name}`);
                 const fCheck = await fetch(`https://api.github.com/repos/${username}/${repoName}/contents/${f.name}`, { headers });
                 const sha = fCheck.ok ? (await fCheck.json()).sha : null;
+                
+                // マルチバイト対応Base64
+                const uint8 = new TextEncoder().encode(f.content);
+                const b64content = btoa(String.fromCharCode(...uint8));
+
                 await fetch(`https://api.github.com/repos/${username}/${repoName}/contents/${f.name}`, {
                     method: 'PUT', headers,
-                    body: JSON.stringify({ message: 'Deploy', content: btoa(unescape(encodeURIComponent(f.content))), sha })
+                    body: JSON.stringify({ message: 'Deploy via Web', content: b64content, sha })
                 });
             }
 
-            // 環境変数（Secrets）登録
+            // Secrets登録
             const envItems = document.querySelectorAll('.env-item');
             if (envItems.length > 0) {
-                addLog("環境変数を暗号化して登録中...");
-                await sodium.ready;
+                addLog("環境変数を暗号化中...");
                 const pkRes = await fetch(`https://api.github.com/repos/${username}/${repoName}/actions/secrets/public-key`, { headers });
                 const { key, key_id } = await pkRes.json();
-                
+
                 for (const item of envItems) {
                     const sk = item.querySelector('.env-key').value.trim();
                     const sv = item.querySelector('.env-val').value.trim();
@@ -254,7 +252,7 @@
                 }
             }
 
-            addLog("GitHub Pagesを設定中...");
+            addLog("GitHub Pagesを有効化中...");
             await fetch(`https://api.github.com/repos/${username}/${repoName}/pages`, {
                 method: 'POST', headers, body: JSON.stringify({ source: { branch: "main", path: "/" } })
             });
@@ -267,7 +265,7 @@
             document.getElementById('siteUrl').href = customDomain ? `https://${customDomain}` : `https://${username}.github.io/${repoName}/`;
             document.getElementById('repoUrl').href = `https://github.com/${username}/${repoName}`;
             document.getElementById('resultBox').style.display = 'block';
-            addLog("✅ デプロイ成功！");
+            addLog("✅ 全ての工程が完了しました！");
 
         } catch (err) { addLog(`❌ エラー: ${err.message}`); }
         finally { btn.disabled = false; document.getElementById('progressContainer').style.display = 'none'; }
