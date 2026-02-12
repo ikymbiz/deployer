@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GitHub Instant Deployer v14.0</title>
+    <title>GitHub Instant Deployer v15.0</title>
     <style>
         :root {
             --bg: #f6f8fa; --card-bg: #ffffff; --text: #24292f;
@@ -20,15 +20,20 @@
         label { display: block; margin-top: 15px; font-weight: bold; font-size: 0.9rem; }
         input, textarea, select { width: 100%; padding: 12px; margin-top: 5px; border: 1px solid var(--border); border-radius: 8px; box-sizing: border-box; font-size: 16px; background: var(--input-bg); color: var(--text); }
 
-        .flex-row { display: flex; gap: 8px; align-items: flex-end; }
-        .small-btn { background: var(--accent); color: white; border: none; padding: 10px; border-radius: 8px; cursor: pointer; font-size: 0.8rem; white-space: nowrap; margin-top: 5px; height: 46px; }
-        .small-btn:disabled { background: var(--border); }
+        /* Modern Repo Select UI */
+        .repo-select-container { position: relative; margin-top: 5px; }
+        .dropdown-list {
+            position: absolute; width: 100%; max-height: 280px; overflow-y: auto;
+            background: white; border: 1px solid var(--border); border-radius: 8px;
+            z-index: 1000; display: none; margin-top: 4px; box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+        }
+        .dropdown-item { padding: 10px 15px; cursor: pointer; border-bottom: 1px solid #f1f1f1; display: flex; flex-direction: column; }
+        .dropdown-item:hover, .dropdown-item.active { background: #f0f7ff; }
+        .dropdown-item .repo-title { font-weight: bold; display: flex; align-items: center; gap: 6px; }
+        .dropdown-item .repo-meta { font-size: 0.75rem; color: #6e7781; margin-top: 2px; }
+        .new-badge { font-size: 0.7rem; background: var(--accent); color: white; padding: 2px 6px; border-radius: 4px; margin-left: 8px; }
+        .status-tag { font-size: 0.7rem; border: 1px solid var(--border); padding: 1px 5px; border-radius: 10px; color: #6e7781; }
 
-        .repo-select-area { background: #f1f4f9; padding: 15px; border-radius: 8px; border: 1px solid var(--border); margin-top: 10px; }
-
-        details { border: 1px solid var(--border); border-radius: 8px; margin-top: 20px; background: rgba(9, 105, 218, 0.05); }
-        summary { padding: 12px; font-weight: bold; cursor: pointer; outline: none; border-radius: 8px; }
-        
         .file-item { border: 1px solid var(--border); padding: 15px; border-radius: 8px; margin-top: 10px; position: relative; }
         .remove-btn { position: absolute; top: 10px; right: 10px; color: var(--error); cursor: pointer; border: none; background: none; font-size: 0.8rem; font-weight: bold; }
         .add-btn { background: none; border: 1px dashed var(--border); color: var(--text); width: 100%; padding: 10px; margin-top: 10px; border-radius: 8px; cursor: pointer; }
@@ -45,30 +50,22 @@
 <body>
 
 <div class="card">
-    <div class="header"><h2>🌐 GitHub Deployer v14.0</h2></div>
+    <div class="header"><h2>🌐 GitHub Deployer v15.0</h2></div>
 
     <div class="setup-link">
-        🔑 <a href="https://github.com/settings/tokens/new?scopes=repo,workflow&description=WebDeployTool" target="_blank">
-        トークンを新規発行する</a>
+        🔑 <a href="https://github.com/settings/tokens/new?scopes=repo,workflow&description=WebDeployTool" target="_blank">トークンを新規発行する</a>
     </div>
 
     <label>GitHub Access Token:</label>
-    <input type="password" id="token" placeholder="ghp_xxxx" oninput="saveToken()">
+    <input type="password" id="token" placeholder="ghp_xxxx" oninput="saveToken(); fetchRepoList()">
 
-    <div class="repo-select-area">
-        <label style="margin-top:0">1. 既存リポジトリを選択:</label>
-        <div class="flex-row">
-            <select id="repoSelect" onchange="syncRepoName()">
-                <option value="">-- リポジトリを取得してください --</option>
-            </select>
-            <button class="small-btn" id="loadReposBtn" onclick="fetchRepoList()">一覧取得</button>
-        </div>
-
-        <label>2. 確定リポジトリ名 (新規は直接入力):</label>
-        <input type="text" id="repoName" placeholder="my-website">
+    <label>リポジトリ名 (検索または新規入力):</label>
+    <div class="repo-select-container">
+        <input type="text" id="repoName" placeholder="my-website" autocomplete="off" oninput="filterRepos()" onclick="showDropdown()">
+        <div id="repoDropdown" class="dropdown-list"></div>
     </div>
 
-    <label>公開設定 (新規作成時):</label>
+    <label id="visibilityLabel">公開設定 (新規作成時):</label>
     <select id="repoVisibility">
         <option value="false">Public (公開)</option>
         <option value="true">Private (非公開)</option>
@@ -100,19 +97,96 @@
 </div>
 
 <script>
+    let allRepos = [];
+    
     window.onload = () => {
         document.getElementById('token').value = localStorage.getItem('gh_token') || '';
         addFileRow('index.html', '', false);
+        if(document.getElementById('token').value) fetchRepoList();
     };
 
     function saveToken() { localStorage.setItem('gh_token', document.getElementById('token').value); }
 
-    function syncRepoName() {
-        const sel = document.getElementById('repoSelect');
-        if (sel.value) {
-            document.getElementById('repoName').value = sel.value;
+    // リポジトリ一覧取得
+    async function fetchRepoList() {
+        const token = document.getElementById('token').value.trim();
+        if (!token || token.length < 10) return;
+
+        try {
+            const res = await fetch('https://api.github.com/user/repos?sort=updated&per_page=100', {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (res.ok) {
+                allRepos = await res.json();
+                addLog(`${allRepos.length} 個のリポジトリを同期しました。`);
+            }
+        } catch (err) { console.error("Repo fetch error", err); }
+    }
+
+    function showDropdown() {
+        if (allRepos.length > 0) filterRepos();
+    }
+
+    function filterRepos() {
+        const input = document.getElementById('repoName').value.toLowerCase();
+        const dropdown = document.getElementById('repoDropdown');
+        dropdown.innerHTML = '';
+
+        // 1. 新規作成のオプションを常にトップに
+        if (input) {
+            const createNew = document.createElement('div');
+            createNew.className = 'dropdown-item';
+            createNew.innerHTML = `<div class="repo-title">✨ Create new: "${input}"</div><div class="repo-meta">新しいリポジトリを作成します</div>`;
+            createNew.onclick = () => selectRepo(input, true);
+            dropdown.appendChild(createNew);
+        }
+
+        // 2. 既存リポジトリのフィルタリング
+        const filtered = allRepos.filter(r => r.name.toLowerCase().includes(input));
+        
+        filtered.forEach(repo => {
+            const item = document.createElement('div');
+            item.className = 'dropdown-item';
+            const timeStr = new Date(repo.updated_at).toLocaleDateString();
+            item.innerHTML = `
+                <div class="repo-title">
+                    ${repo.name} ${repo.private ? '🔒' : '🌐'}
+                    <span class="status-tag">${repo.language || 'Code'}</span>
+                </div>
+                <div class="repo-meta">Last updated: ${timeStr}</div>
+            `;
+            item.onclick = () => selectRepo(repo.name, false);
+            dropdown.appendChild(item);
+        });
+
+        dropdown.style.display = (input || filtered.length > 0) ? 'block' : 'none';
+    }
+
+    function selectRepo(name, isNew) {
+        const input = document.getElementById('repoName');
+        input.value = name;
+        document.getElementById('repoDropdown').style.display = 'none';
+        
+        // 新規か既存かでUIを少し変える
+        const visibility = document.getElementById('repoVisibility');
+        const vLabel = document.getElementById('visibilityLabel');
+        if (!isNew) {
+            visibility.style.opacity = "0.5";
+            vLabel.innerText = "公開設定 (既存のため変更不可)";
+        } else {
+            visibility.style.opacity = "1";
+            vLabel.innerText = "公開設定 (新規作成時):";
         }
     }
+
+    // 外側クリックでドロップダウンを閉じる
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('.repo-select-container')) {
+            document.getElementById('repoDropdown').style.display = 'none';
+        }
+    });
+
+    // --- 以降、元のロジックを維持 ---
 
     function addFileRow(name = '', content = '', removable = true) {
         const div = document.createElement('div');
@@ -125,41 +199,6 @@
         const log = document.getElementById('log');
         log.innerHTML += `<div>> ${msg}</div>`;
         log.scrollTop = log.scrollHeight;
-    }
-
-    async function fetchRepoList() {
-        const token = document.getElementById('token').value.replace(/[\s\u3000]/g, '');
-        const btn = document.getElementById('loadReposBtn');
-        const sel = document.getElementById('repoSelect');
-        
-        if (!token) return alert("トークンを先に入力してください");
-
-        btn.disabled = true;
-        btn.innerText = "読込中...";
-        sel.innerHTML = '<option value="">-- 読み込み中 --</option>';
-
-        try {
-            const res = await fetch('https://api.github.com/user/repos?sort=updated&per_page=100', {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            if (!res.ok) throw new Error("取得に失敗しました。トークンを確認してください。");
-            
-            const repos = await res.json();
-            sel.innerHTML = '<option value="">-- 選択してください --</option>';
-            repos.forEach(repo => {
-                const opt = document.createElement('option');
-                opt.value = repo.name;
-                opt.textContent = `${repo.name} ${repo.private ? '(🔒)' : ''}`;
-                sel.appendChild(opt);
-            });
-            addLog(`${repos.length} 個のリポジトリを読み込みました。`);
-        } catch (err) {
-            alert(err.message);
-            sel.innerHTML = '<option value="">-- エラーが発生しました --</option>';
-        } finally {
-            btn.disabled = false;
-            btn.innerText = "一覧取得";
-        }
     }
 
     async function run() {
