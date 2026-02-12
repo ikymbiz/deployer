@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GitHub Instant Deployer v13.0</title>
+    <title>GitHub Instant Deployer v14.0</title>
     <style>
         :root {
             --bg: #f6f8fa; --card-bg: #ffffff; --text: #24292f;
@@ -24,6 +24,8 @@
         .small-btn { background: var(--accent); color: white; border: none; padding: 10px; border-radius: 8px; cursor: pointer; font-size: 0.8rem; white-space: nowrap; margin-top: 5px; height: 46px; }
         .small-btn:disabled { background: var(--border); }
 
+        .repo-select-area { background: #f1f4f9; padding: 15px; border-radius: 8px; border: 1px solid var(--border); margin-top: 10px; }
+
         details { border: 1px solid var(--border); border-radius: 8px; margin-top: 20px; background: rgba(9, 105, 218, 0.05); }
         summary { padding: 12px; font-weight: bold; cursor: pointer; outline: none; border-radius: 8px; }
         
@@ -43,7 +45,7 @@
 <body>
 
 <div class="card">
-    <div class="header"><h2>🌐 GitHub Deployer v13.0</h2></div>
+    <div class="header"><h2>🌐 GitHub Deployer v14.0</h2></div>
 
     <div class="setup-link">
         🔑 <a href="https://github.com/settings/tokens/new?scopes=repo,workflow&description=WebDeployTool" target="_blank">
@@ -53,12 +55,18 @@
     <label>GitHub Access Token:</label>
     <input type="password" id="token" placeholder="ghp_xxxx" oninput="saveToken()">
 
-    <label>リポジトリ選択/入力:</label>
-    <div class="flex-row">
-        <input type="text" id="repoName" placeholder="my-website" list="repoList">
-        <button class="small-btn" id="loadReposBtn" onclick="fetchRepoList()">取得</button>
+    <div class="repo-select-area">
+        <label style="margin-top:0">1. 既存リポジトリを選択:</label>
+        <div class="flex-row">
+            <select id="repoSelect" onchange="syncRepoName()">
+                <option value="">-- リポジトリを取得してください --</option>
+            </select>
+            <button class="small-btn" id="loadReposBtn" onclick="fetchRepoList()">一覧取得</button>
+        </div>
+
+        <label>2. 確定リポジトリ名 (新規は直接入力):</label>
+        <input type="text" id="repoName" placeholder="my-website">
     </div>
-    <datalist id="repoList"></datalist>
 
     <label>公開設定 (新規作成時):</label>
     <select id="repoVisibility">
@@ -94,10 +102,17 @@
 <script>
     window.onload = () => {
         document.getElementById('token').value = localStorage.getItem('gh_token') || '';
-        addFileRow('index.html', '<!DOCTYPE html>\n<html>\n<head><meta charset="utf-8"></head>\n<body>\n  <h1>Deployed from v13.0</h1>\n</body>\n</html>', false);
+        addFileRow('index.html', '<!DOCTYPE html>\n<html>\n<head><meta charset="utf-8"></head>\n<body>\n  <h1>Deployed from v14.0</h1>\n</body>\n</html>', false);
     };
 
     function saveToken() { localStorage.setItem('gh_token', document.getElementById('token').value); }
+
+    function syncRepoName() {
+        const sel = document.getElementById('repoSelect');
+        if (sel.value) {
+            document.getElementById('repoName').value = sel.value;
+        }
+    }
 
     function addFileRow(name = '', content = '', removable = true) {
         const div = document.createElement('div');
@@ -112,17 +127,16 @@
         log.scrollTop = log.scrollHeight;
     }
 
-    // --- 追加機能: リポジトリ一覧の取得 ---
     async function fetchRepoList() {
         const token = document.getElementById('token').value.replace(/[\s\u3000]/g, '');
         const btn = document.getElementById('loadReposBtn');
-        const dl = document.getElementById('repoList');
+        const sel = document.getElementById('repoSelect');
         
         if (!token) return alert("トークンを先に入力してください");
 
         btn.disabled = true;
         btn.innerText = "読込中...";
-        dl.innerHTML = "";
+        sel.innerHTML = '<option value="">-- 読み込み中 --</option>';
 
         try {
             const res = await fetch('https://api.github.com/user/repos?sort=updated&per_page=100', {
@@ -131,17 +145,20 @@
             if (!res.ok) throw new Error("取得に失敗しました。トークンを確認してください。");
             
             const repos = await res.json();
+            sel.innerHTML = '<option value="">-- 選択してください --</option>';
             repos.forEach(repo => {
                 const opt = document.createElement('option');
                 opt.value = repo.name;
-                dl.appendChild(opt);
+                opt.textContent = `${repo.name} ${repo.private ? '(🔒)' : ''}`;
+                sel.appendChild(opt);
             });
             addLog(`${repos.length} 個のリポジトリを読み込みました。`);
         } catch (err) {
             alert(err.message);
+            sel.innerHTML = '<option value="">-- エラーが発生しました --</option>';
         } finally {
             btn.disabled = false;
-            btn.innerText = "取得";
+            btn.innerText = "一覧取得";
         }
     }
 
@@ -164,25 +181,22 @@
         };
 
         try {
-            // 1. 認証
             addLog("GitHub認証中...");
             const userRes = await fetch('https://api.github.com/user', { headers });
             if(!userRes.ok) throw new Error("認証失敗。");
             const username = (await userRes.json()).login;
 
-            // 2. リポジトリの存在チェック or 作成
             let checkRepo = await fetch(`https://api.github.com/repos/${username}/${repoName}`, { headers });
             if (!checkRepo.ok) {
-                addLog(`リポジトリ "${repoName}" が見つかりません。新規作成します...`);
+                addLog(`新規リポジトリ "${repoName}" を作成します...`);
                 await fetch('https://api.github.com/user/repos', {
                     method: 'POST', headers, body: JSON.stringify({ name: repoName, auto_init: true, private: isPrivate })
                 });
                 await new Promise(r => setTimeout(r, 2000));
             } else {
-                addLog(`既存のリポジトリ "${repoName}" を使用します。`);
+                addLog(`既存のリポジトリ "${repoName}" を更新します。`);
             }
 
-            // 3. ファイル転送
             const fileItems = document.querySelectorAll('.file-item');
             for (const item of fileItems) {
                 const name = item.querySelector('.filename').value.trim();
@@ -198,17 +212,15 @@
 
                 await fetch(`https://api.github.com/repos/${username}/${repoName}/contents/${name}`, {
                     method: 'PUT', headers,
-                    body: JSON.stringify({ message: 'Deploy via Web Tool', content: b64, sha })
+                    body: JSON.stringify({ message: 'Update via Deployer', content: b64, sha })
                 });
             }
 
-            // 4. Pages有効化 (既存設定があっても上書き/確認)
             addLog("Pages 設定中...");
             await fetch(`https://api.github.com/repos/${username}/${repoName}/pages`, {
                 method: 'POST', headers, body: JSON.stringify({ source: { branch: "main", path: "/" } })
             });
 
-            // 5. 反映待ち
             document.getElementById('progressContainer').style.display = 'block';
             let sec = 60;
             const timerInterval = setInterval(() => { 
