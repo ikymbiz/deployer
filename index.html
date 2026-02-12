@@ -3,9 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GitHub Instant Deployer v11.6</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/libsodium-wrappers/0.7.13/sodium-wrappers.min.js"></script>
-    
+    <title>GitHub Instant Deployer v13.0</title>
     <style>
         :root {
             --bg: #f6f8fa; --card-bg: #ffffff; --text: #24292f;
@@ -22,19 +20,13 @@
         label { display: block; margin-top: 15px; font-weight: bold; font-size: 0.9rem; }
         input, textarea, select { width: 100%; padding: 12px; margin-top: 5px; border: 1px solid var(--border); border-radius: 8px; box-sizing: border-box; font-size: 16px; background: var(--input-bg); color: var(--text); }
 
+        .flex-row { display: flex; gap: 8px; align-items: flex-end; }
+        .small-btn { background: var(--accent); color: white; border: none; padding: 10px; border-radius: 8px; cursor: pointer; font-size: 0.8rem; white-space: nowrap; margin-top: 5px; height: 46px; }
+        .small-btn:disabled { background: var(--border); }
+
         details { border: 1px solid var(--border); border-radius: 8px; margin-top: 20px; background: rgba(9, 105, 218, 0.05); }
         summary { padding: 12px; font-weight: bold; cursor: pointer; outline: none; border-radius: 8px; }
-        .domain-area { padding: 0 15px 15px 15px; }
-        .check-btn { background: var(--accent); color: white; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 0.8rem; margin-top: 10px; font-weight: bold; }
-        #dnsGuide { display: none; margin-top: 15px; padding: 12px; background: var(--guide-bg); border-radius: 8px; font-size: 0.85rem; border: 1px solid var(--accent); }
-        .status-badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: bold; margin-left: 10px; }
-        .status-ok { background: #dafbe1; color: #1a7f37; }
-        .status-ng { background: #ffeef0; color: #cf222e; }
-
-        .env-section { background: #f8f9fa; border: 1px solid var(--border); padding: 15px; border-radius: 8px; margin-top: 20px; }
-        .env-item { display: flex; gap: 8px; margin-top: 8px; position: relative; }
-        .env-item input { margin-top: 0; padding: 8px; font-size: 14px; }
-
+        
         .file-item { border: 1px solid var(--border); padding: 15px; border-radius: 8px; margin-top: 10px; position: relative; }
         .remove-btn { position: absolute; top: 10px; right: 10px; color: var(--error); cursor: pointer; border: none; background: none; font-size: 0.8rem; font-weight: bold; }
         .add-btn { background: none; border: 1px dashed var(--border); color: var(--text); width: 100%; padding: 10px; margin-top: 10px; border-radius: 8px; cursor: pointer; }
@@ -51,7 +43,7 @@
 <body>
 
 <div class="card">
-    <div class="header"><h2>🌐 GitHub Deployer v11.6</h2></div>
+    <div class="header"><h2>🌐 GitHub Deployer v13.0</h2></div>
 
     <div class="setup-link">
         🔑 <a href="https://github.com/settings/tokens/new?scopes=repo,workflow&description=WebDeployTool" target="_blank">
@@ -61,10 +53,14 @@
     <label>GitHub Access Token:</label>
     <input type="password" id="token" placeholder="ghp_xxxx" oninput="saveToken()">
 
-    <label>リポジトリ名:</label>
-    <input type="text" id="repoName" placeholder="my-website">
+    <label>リポジトリ選択/入力:</label>
+    <div class="flex-row">
+        <input type="text" id="repoName" placeholder="my-website" list="repoList">
+        <button class="small-btn" id="loadReposBtn" onclick="fetchRepoList()">取得</button>
+    </div>
+    <datalist id="repoList"></datalist>
 
-    <label>公開設定:</label>
+    <label>公開設定 (新規作成時):</label>
     <select id="repoVisibility">
         <option value="false">Public (公開)</option>
         <option value="true">Private (非公開)</option>
@@ -72,23 +68,11 @@
 
     <details>
         <summary>🌐 独自ドメイン設定 (任意)</summary>
-        <div class="domain-area">
-            <label>ドメイン名 <span id="dnsStatus"></span></label>
-            <input type="text" id="customDomain" placeholder="example.com" oninput="clearDnsStatus()">
-            <button class="check-btn" onclick="checkDNS()">DNS設定を確認する</button>
-            <div id="dnsGuide">
-                <strong>📋 期待される設定値:</strong>
-                <div id="dnsGuideContent"></div>
-            </div>
+        <div style="padding: 15px;">
+            <label style="margin-top:0">ドメイン名</label>
+            <input type="text" id="customDomain" placeholder="example.com">
         </div>
     </details>
-
-    <div class="env-section">
-        <label style="margin-top:0">🔐 環境変数 (GitHub Secrets):</label>
-        <p style="font-size: 0.7rem; color: #666;">※環境変数の利用にはライブラリの読み込みが必要です。</p>
-        <div id="envContainer"></div>
-        <button class="add-btn" onclick="addEnvRow()">+ 変数を追加</button>
-    </div>
 
     <div id="fileContainer"></div>
     <button class="add-btn" onclick="addFileRow()">+ ファイルを追加</button>
@@ -110,18 +94,10 @@
 <script>
     window.onload = () => {
         document.getElementById('token').value = localStorage.getItem('gh_token') || '';
-        addFileRow('index.html', '<!DOCTYPE html>\n<html>\n<head><meta charset="utf-8"></head>\n<body>\n  <h1>Ready to Deploy!</h1>\n</body>\n</html>', false);
+        addFileRow('index.html', '<!DOCTYPE html>\n<html>\n<head><meta charset="utf-8"></head>\n<body>\n  <h1>Deployed from v13.0</h1>\n</body>\n</html>', false);
     };
 
     function saveToken() { localStorage.setItem('gh_token', document.getElementById('token').value); }
-    function clearDnsStatus() { document.getElementById('dnsStatus').innerHTML = ''; }
-
-    function addEnvRow(key = '', val = '') {
-        const div = document.createElement('div');
-        div.className = 'env-item';
-        div.innerHTML = `<input type="text" class="env-key" placeholder="KEY" value="${key}"><input type="text" class="env-val" placeholder="VALUE" value="${val}"><button class="remove-btn" style="position:static" onclick="this.parentElement.remove()">×</button>`;
-        document.getElementById('envContainer').appendChild(div);
-    }
 
     function addFileRow(name = '', content = '', removable = true) {
         const div = document.createElement('div');
@@ -134,6 +110,39 @@
         const log = document.getElementById('log');
         log.innerHTML += `<div>> ${msg}</div>`;
         log.scrollTop = log.scrollHeight;
+    }
+
+    // --- 追加機能: リポジトリ一覧の取得 ---
+    async function fetchRepoList() {
+        const token = document.getElementById('token').value.replace(/[\s\u3000]/g, '');
+        const btn = document.getElementById('loadReposBtn');
+        const dl = document.getElementById('repoList');
+        
+        if (!token) return alert("トークンを先に入力してください");
+
+        btn.disabled = true;
+        btn.innerText = "読込中...";
+        dl.innerHTML = "";
+
+        try {
+            const res = await fetch('https://api.github.com/user/repos?sort=updated&per_page=100', {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (!res.ok) throw new Error("取得に失敗しました。トークンを確認してください。");
+            
+            const repos = await res.json();
+            repos.forEach(repo => {
+                const opt = document.createElement('option');
+                opt.value = repo.name;
+                dl.appendChild(opt);
+            });
+            addLog(`${repos.length} 個のリポジトリを読み込みました。`);
+        } catch (err) {
+            alert(err.message);
+        } finally {
+            btn.disabled = false;
+            btn.innerText = "取得";
+        }
     }
 
     async function run() {
@@ -155,37 +164,25 @@
         };
 
         try {
-            // 1. ライブラリの初期化 (失敗してもデプロイ自体は続行する)
-            let sodiumAvailable = false;
-            const s = window.sodium || window.libsodium;
-            if (s) {
-                try {
-                    await s.ready;
-                    window.sodium = s;
-                    sodiumAvailable = true;
-                    addLog("Libsodium 初期化完了。");
-                } catch(e) { addLog("⚠ Libsodium 初期化失敗。環境変数はスキップされます。"); }
-            } else {
-                addLog("⚠ Libsodium 未検出。環境変数はスキップされます。");
-            }
-
-            // 2. 認証
+            // 1. 認証
             addLog("GitHub認証中...");
             const userRes = await fetch('https://api.github.com/user', { headers });
-            if(!userRes.ok) throw new Error("認証失敗。トークンを確認してください。");
+            if(!userRes.ok) throw new Error("認証失敗。");
             const username = (await userRes.json()).login;
 
-            // 3. リポジトリ作成
+            // 2. リポジトリの存在チェック or 作成
             let checkRepo = await fetch(`https://api.github.com/repos/${username}/${repoName}`, { headers });
             if (!checkRepo.ok) {
-                addLog("リポジトリ作成中...");
+                addLog(`リポジトリ "${repoName}" が見つかりません。新規作成します...`);
                 await fetch('https://api.github.com/user/repos', {
                     method: 'POST', headers, body: JSON.stringify({ name: repoName, auto_init: true, private: isPrivate })
                 });
                 await new Promise(r => setTimeout(r, 2000));
+            } else {
+                addLog(`既存のリポジトリ "${repoName}" を使用します。`);
             }
 
-            // 4. ファイル転送
+            // 3. ファイル転送
             const fileItems = document.querySelectorAll('.file-item');
             for (const item of fileItems) {
                 const name = item.querySelector('.filename').value.trim();
@@ -195,48 +192,23 @@
                 addLog(`転送中: ${name}`);
                 const fCheck = await fetch(`https://api.github.com/repos/${username}/${repoName}/contents/${name}`, { headers });
                 const sha = fCheck.ok ? (await fCheck.json()).sha : null;
-                
+
                 const uint8 = new TextEncoder().encode(content);
                 const b64 = btoa(String.fromCharCode(...uint8));
 
                 await fetch(`https://api.github.com/repos/${username}/${repoName}/contents/${name}`, {
                     method: 'PUT', headers,
-                    body: JSON.stringify({ message: 'Update', content: b64, sha })
+                    body: JSON.stringify({ message: 'Deploy via Web Tool', content: b64, sha })
                 });
             }
 
-            // 5. 環境変数 (ライブラリが使える場合のみ)
-            const envItems = document.querySelectorAll('.env-item');
-            if (envItems.length > 0 && sodiumAvailable) {
-                addLog("Secrets 登録中...");
-                const pkRes = await fetch(`https://api.github.com/repos/${username}/${repoName}/actions/secrets/public-key`, { headers });
-                const { key, key_id } = await pkRes.json();
-
-                for (const item of envItems) {
-                    const sk = item.querySelector('.env-key').value.trim();
-                    const sv = item.querySelector('.env-val').value.trim();
-                    if (!sk || !sv) continue;
-
-                    const binKey = sodium.from_base64(key, sodium.base64_variants.ORIGINAL);
-                    const binVal = sodium.from_string(sv);
-                    const encVal = sodium.crypto_box_seal(binVal, binKey);
-                    const encBase64 = sodium.to_base64(encVal, sodium.base64_variants.ORIGINAL);
-
-                    await fetch(`https://api.github.com/repos/${username}/${repoName}/actions/secrets/${sk}`, {
-                        method: 'PUT', headers, body: JSON.stringify({ encrypted_value: encBase64, key_id: key_id })
-                    });
-                }
-            } else if (envItems.length > 0) {
-                addLog("⚠ ライブラリ未読み込みのため Secrets は登録されませんでした。");
-            }
-
-            // 6. Pages有効化
+            // 4. Pages有効化 (既存設定があっても上書き/確認)
             addLog("Pages 設定中...");
             await fetch(`https://api.github.com/repos/${username}/${repoName}/pages`, {
                 method: 'POST', headers, body: JSON.stringify({ source: { branch: "main", path: "/" } })
             });
 
-            // 7. カウントダウン開始
+            // 5. 反映待ち
             document.getElementById('progressContainer').style.display = 'block';
             let sec = 60;
             const timerInterval = setInterval(() => { 
@@ -249,7 +221,7 @@
             document.getElementById('siteUrl').href = customDomain ? `https://${customDomain}` : `https://${username}.github.io/${repoName}/`;
             document.getElementById('repoUrl').href = `https://github.com/${username}/${repoName}`;
             document.getElementById('resultBox').style.display = 'block';
-            addLog("✅ デプロイ成功！");
+            addLog("✅ デプロイ完了！");
 
         } catch (err) { 
             addLog(`❌ エラー: ${err.message}`); 
@@ -257,13 +229,6 @@
             btn.disabled = false; 
             document.getElementById('progressContainer').style.display = 'none'; 
         }
-    }
-
-    async function checkDNS() {
-        // (DNSチェックコードは変更なしのため省略可能ですが、そのまま維持しています)
-        const domain = document.getElementById('customDomain').value.trim();
-        if (!domain) return alert("ドメインを入力してください");
-        addLog(`DNS確認開始: ${domain}`);
     }
 </script>
 </body>
