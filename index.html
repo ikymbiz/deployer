@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GitHub Instant Deployer v15.0</title>
+    <title>GitHub Instant Deployer v15.1</title>
     <style>
         :root {
             --bg: #f6f8fa; --card-bg: #ffffff; --text: #24292f;
@@ -31,7 +31,16 @@
         .dropdown-item:hover, .dropdown-item.active { background: #f0f7ff; }
         .dropdown-item .repo-title { font-weight: bold; display: flex; align-items: center; gap: 6px; }
         .dropdown-item .repo-meta { font-size: 0.75rem; color: #6e7781; margin-top: 2px; }
-        .new-badge { font-size: 0.7rem; background: var(--accent); color: white; padding: 2px 6px; border-radius: 4px; margin-left: 8px; }
+        
+        /* New Link Style */
+        .selected-repo-link { 
+            display: none; margin-top: 8px; font-size: 0.8rem; 
+            padding: 8px 12px; background: #f6f8fa; border-radius: 6px;
+            border: 1px solid var(--border); align-items: center; gap: 5px;
+        }
+        .selected-repo-link a { color: var(--accent); text-decoration: none; font-weight: bold; }
+        .selected-repo-link a:hover { text-decoration: underline; }
+
         .status-tag { font-size: 0.7rem; border: 1px solid var(--border); padding: 1px 5px; border-radius: 10px; color: #6e7781; }
 
         .file-item { border: 1px solid var(--border); padding: 15px; border-radius: 8px; margin-top: 10px; position: relative; }
@@ -50,7 +59,7 @@
 <body>
 
 <div class="card">
-    <div class="header"><h2>🌐 GitHub Deployer v15.0</h2></div>
+    <div class="header"><h2>🌐 GitHub Deployer v15.1</h2></div>
 
     <div class="setup-link">
         🔑 <a href="https://github.com/settings/tokens/new?scopes=repo,workflow&description=WebDeployTool" target="_blank">トークンを新規発行する</a>
@@ -63,6 +72,9 @@
     <div class="repo-select-container">
         <input type="text" id="repoName" placeholder="my-website" autocomplete="off" oninput="filterRepos()" onclick="showDropdown()">
         <div id="repoDropdown" class="dropdown-list"></div>
+        <div id="repoLinkArea" class="selected-repo-link">
+            📁 <a id="selectedRepoUrl" href="#" target="_blank">リポジトリを別タブで開く</a>
+        </div>
     </div>
 
     <label id="visibilityLabel">公開設定 (新規作成時):</label>
@@ -107,7 +119,6 @@
 
     function saveToken() { localStorage.setItem('gh_token', document.getElementById('token').value); }
 
-    // リポジトリ一覧取得
     async function fetchRepoList() {
         const token = document.getElementById('token').value.trim();
         if (!token || token.length < 10) return;
@@ -132,7 +143,6 @@
         const dropdown = document.getElementById('repoDropdown');
         dropdown.innerHTML = '';
 
-        // 1. 新規作成のオプションを常にトップに
         if (input) {
             const createNew = document.createElement('div');
             createNew.className = 'dropdown-item';
@@ -141,7 +151,6 @@
             dropdown.appendChild(createNew);
         }
 
-        // 2. 既存リポジトリのフィルタリング
         const filtered = allRepos.filter(r => r.name.toLowerCase().includes(input));
         
         filtered.forEach(repo => {
@@ -155,38 +164,52 @@
                 </div>
                 <div class="repo-meta">Last updated: ${timeStr}</div>
             `;
-            item.onclick = () => selectRepo(repo.name, false);
+            item.onclick = () => selectRepo(repo.name, false, repo.html_url);
             dropdown.appendChild(item);
         });
 
         dropdown.style.display = (input || filtered.length > 0) ? 'block' : 'none';
+        
+        // 入力内容が変わったら一旦リンクエリアを隠す（確定時のみ出す）
+        document.getElementById('repoLinkArea').style.display = 'none';
     }
 
-    function selectRepo(name, isNew) {
+    function selectRepo(name, isNew, url = '') {
         const input = document.getElementById('repoName');
         input.value = name;
         document.getElementById('repoDropdown').style.display = 'none';
         
-        // 新規か既存かでUIを少し変える
         const visibility = document.getElementById('repoVisibility');
         const vLabel = document.getElementById('visibilityLabel');
+        const linkArea = document.getElementById('repoLinkArea');
+        const linkTag = document.getElementById('selectedRepoUrl');
+
         if (!isNew) {
+            // 既存リポジトリ選択時
             visibility.style.opacity = "0.5";
             vLabel.innerText = "公開設定 (既存のため変更不可)";
+            
+            // リンクを表示
+            if (url) {
+                linkArea.style.display = 'flex';
+                linkTag.href = url;
+                linkTag.innerText = `📁 リポジトリを開く: ${name}`;
+            }
         } else {
+            // 新規作成時
             visibility.style.opacity = "1";
             vLabel.innerText = "公開設定 (新規作成時):";
+            linkArea.style.display = 'none';
         }
     }
 
-    // 外側クリックでドロップダウンを閉じる
     document.addEventListener('click', (e) => {
         if (!e.target.closest('.repo-select-container')) {
             document.getElementById('repoDropdown').style.display = 'none';
         }
     });
 
-    // --- 以降、元のロジックを維持 ---
+    // --- 以下のロジックは変更なし ---
 
     function addFileRow(name = '', content = '', removable = true) {
         const div = document.createElement('div');
