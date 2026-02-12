@@ -102,7 +102,7 @@
 <script>
     window.onload = () => {
         document.getElementById('token').value = localStorage.getItem('gh_token') || '';
-        addFileRow('index.html', '<!DOCTYPE html>\n<html>\n<head><meta charset="utf-8"></head>\n<body>\n  <h1>Deployed from v14.0</h1>\n</body>\n</html>', false);
+        addFileRow('index.html', '', false);
     };
 
     function saveToken() { localStorage.setItem('gh_token', document.getElementById('token').value); }
