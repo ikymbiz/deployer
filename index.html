@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GitHub Instant Deployer v15.1</title>
+    <title>GitHub Instant Deployer v15.2</title>
     <style>
         :root {
             --bg: #f6f8fa; --card-bg: #ffffff; --text: #24292f;
@@ -20,7 +20,6 @@
         label { display: block; margin-top: 15px; font-weight: bold; font-size: 0.9rem; }
         input, textarea, select { width: 100%; padding: 12px; margin-top: 5px; border: 1px solid var(--border); border-radius: 8px; box-sizing: border-box; font-size: 16px; background: var(--input-bg); color: var(--text); }
 
-        /* Modern Repo Select UI */
         .repo-select-container { position: relative; margin-top: 5px; }
         .dropdown-list {
             position: absolute; width: 100%; max-height: 280px; overflow-y: auto;
@@ -31,18 +30,18 @@
         .dropdown-item:hover, .dropdown-item.active { background: #f0f7ff; }
         .dropdown-item .repo-title { font-weight: bold; display: flex; align-items: center; gap: 6px; }
         .dropdown-item .repo-meta { font-size: 0.75rem; color: #6e7781; margin-top: 2px; }
-        
-        /* New Link Style */
+
+        /* リポジトリ・Pagesリンク表示エリア */
         .selected-repo-link { 
             display: none; margin-top: 8px; font-size: 0.8rem; 
-            padding: 8px 12px; background: #f6f8fa; border-radius: 6px;
-            border: 1px solid var(--border); align-items: center; gap: 5px;
+            padding: 10px 12px; background: #f6f8fa; border-radius: 6px;
+            border: 1px solid var(--border); flex-direction: column; gap: 5px;
         }
         .selected-repo-link a { color: var(--accent); text-decoration: none; font-weight: bold; }
         .selected-repo-link a:hover { text-decoration: underline; }
+        .pages-found { color: var(--primary) !important; }
 
         .status-tag { font-size: 0.7rem; border: 1px solid var(--border); padding: 1px 5px; border-radius: 10px; color: #6e7781; }
-
         .file-item { border: 1px solid var(--border); padding: 15px; border-radius: 8px; margin-top: 10px; position: relative; }
         .remove-btn { position: absolute; top: 10px; right: 10px; color: var(--error); cursor: pointer; border: none; background: none; font-size: 0.8rem; font-weight: bold; }
         .add-btn { background: none; border: 1px dashed var(--border); color: var(--text); width: 100%; padding: 10px; margin-top: 10px; border-radius: 8px; cursor: pointer; }
@@ -59,7 +58,7 @@
 <body>
 
 <div class="card">
-    <div class="header"><h2>🌐 GitHub Deployer v15.1</h2></div>
+    <div class="header"><h2>🌐 GitHub Deployer v15.2</h2></div>
 
     <div class="setup-link">
         🔑 <a href="https://github.com/settings/tokens/new?scopes=repo,workflow&description=WebDeployTool" target="_blank">トークンを新規発行する</a>
@@ -72,8 +71,12 @@
     <div class="repo-select-container">
         <input type="text" id="repoName" placeholder="my-website" autocomplete="off" oninput="filterRepos()" onclick="showDropdown()">
         <div id="repoDropdown" class="dropdown-list"></div>
+        
         <div id="repoLinkArea" class="selected-repo-link">
-            📁 <a id="selectedRepoUrl" href="#" target="_blank">リポジトリを別タブで開く</a>
+            <div>📁 <a id="selectedRepoUrl" href="#" target="_blank">リポジトリを別タブで開く</a></div>
+            <div id="existingPagesArea" style="display: none; margin-top: 4px; border-top: 1px solid var(--border); pt: 5px;">
+                🚀 <a id="existingPagesUrl" href="#" target="_blank" class="pages-found">公開済みサイトを表示</a>
+            </div>
         </div>
     </div>
 
@@ -110,11 +113,15 @@
 
 <script>
     let allRepos = [];
-    
+    let currentUsername = "";
+
     window.onload = () => {
-        document.getElementById('token').value = localStorage.getItem('gh_token') || '';
-        addFileRow('index.html', '', false);
-        if(document.getElementById('token').value) fetchRepoList();
+        const savedToken = localStorage.getItem('gh_token');
+        if(savedToken) {
+            document.getElementById('token').value = savedToken;
+            fetchRepoList();
+        }
+        addFileRow('index.html', '<h1>Hello World</h1>', false);
     };
 
     function saveToken() { localStorage.setItem('gh_token', document.getElementById('token').value); }
@@ -124,9 +131,16 @@
         if (!token || token.length < 10) return;
 
         try {
-            const res = await fetch('https://api.github.com/user/repos?sort=updated&per_page=100', {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
+            const headers = { 'Authorization': `Bearer ${token}` };
+            
+            // ユーザー名を先に取得
+            const userRes = await fetch('https://api.github.com/user', { headers });
+            if (userRes.ok) {
+                const userData = await userRes.json();
+                currentUsername = userData.login;
+            }
+
+            const res = await fetch('https://api.github.com/user/repos?sort=updated&per_page=100', { headers });
             if (res.ok) {
                 allRepos = await res.json();
                 addLog(`${allRepos.length} 個のリポジトリを同期しました。`);
@@ -152,7 +166,7 @@
         }
 
         const filtered = allRepos.filter(r => r.name.toLowerCase().includes(input));
-        
+
         filtered.forEach(repo => {
             const item = document.createElement('div');
             item.className = 'dropdown-item';
@@ -169,38 +183,61 @@
         });
 
         dropdown.style.display = (input || filtered.length > 0) ? 'block' : 'none';
-        
-        // 入力内容が変わったら一旦リンクエリアを隠す（確定時のみ出す）
         document.getElementById('repoLinkArea').style.display = 'none';
     }
 
-    function selectRepo(name, isNew, url = '') {
+    async function selectRepo(name, isNew, url = '') {
         const input = document.getElementById('repoName');
         input.value = name;
         document.getElementById('repoDropdown').style.display = 'none';
-        
+
         const visibility = document.getElementById('repoVisibility');
         const vLabel = document.getElementById('visibilityLabel');
         const linkArea = document.getElementById('repoLinkArea');
         const linkTag = document.getElementById('selectedRepoUrl');
+        const pagesArea = document.getElementById('existingPagesArea');
+        const pagesTag = document.getElementById('existingPagesUrl');
+
+        // Pages表示のリセット
+        pagesArea.style.display = 'none';
 
         if (!isNew) {
-            // 既存リポジトリ選択時
             visibility.style.opacity = "0.5";
             vLabel.innerText = "公開設定 (既存のため変更不可)";
-            
-            // リンクを表示
+
             if (url) {
                 linkArea.style.display = 'flex';
                 linkTag.href = url;
-                linkTag.innerText = `📁 リポジトリを開く: ${name}`;
+                linkTag.innerText = `📁 リポジトリ: ${name}`;
+                
+                // Pagesの設定状況を確認
+                checkExistingPages(name, pagesArea, pagesTag);
             }
         } else {
-            // 新規作成時
             visibility.style.opacity = "1";
             vLabel.innerText = "公開設定 (新規作成時):";
             linkArea.style.display = 'none';
         }
+    }
+
+    async function checkExistingPages(repoName, areaEl, linkEl) {
+        const token = document.getElementById('token').value.trim();
+        if (!currentUsername || !token) return;
+
+        try {
+            const res = await fetch(`https://api.github.com/repos/${currentUsername}/${repoName}/pages`, {
+                headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/vnd.github+json' }
+            });
+            
+            if (res.ok) {
+                const data = await res.json();
+                if (data.html_url) {
+                    areaEl.style.display = 'block';
+                    linkEl.href = data.html_url;
+                    linkEl.innerText = `🚀 公開済みサイト: ${data.html_url}`;
+                }
+            }
+        } catch (err) { console.log("Pages info not found."); }
     }
 
     document.addEventListener('click', (e) => {
@@ -208,8 +245,6 @@
             document.getElementById('repoDropdown').style.display = 'none';
         }
     });
-
-    // --- 以下のロジックは変更なし ---
 
     function addFileRow(name = '', content = '', removable = true) {
         const div = document.createElement('div');
@@ -245,7 +280,7 @@
         try {
             addLog("GitHub認証中...");
             const userRes = await fetch('https://api.github.com/user', { headers });
-            if(!userRes.ok) throw new Error("認証失敗。");
+            if(!userRes.ok) throw new Error("認証失敗。トークンを確認してください。");
             const username = (await userRes.json()).login;
 
             let checkRepo = await fetch(`https://api.github.com/repos/${username}/${repoName}`, { headers });
@@ -278,10 +313,13 @@
                 });
             }
 
-            addLog("Pages 設定中...");
-            await fetch(`https://api.github.com/repos/${username}/${repoName}/pages`, {
-                method: 'POST', headers, body: JSON.stringify({ source: { branch: "main", path: "/" } })
-            });
+            // Pages設定 (409衝突回避のためtry-catch)
+            try {
+                addLog("Pages 設定を確認/更新中...");
+                await fetch(`https://api.github.com/repos/${username}/${repoName}/pages`, {
+                    method: 'POST', headers, body: JSON.stringify({ source: { branch: "main", path: "/" } })
+                });
+            } catch (e) { console.log("Pages already configured."); }
 
             document.getElementById('progressContainer').style.display = 'block';
             let sec = 60;
