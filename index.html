@@ -53,7 +53,13 @@
         #log { margin-top: 20px; font-size: 0.75rem; background: var(--log-bg); color: var(--log-text); padding: 12px; border-radius: 8px; height: 120px; overflow-y: auto; font-family: monospace; }
         .result-box { margin-top: 20px; padding: 20px; border-radius: 10px; display: none; border: 2px solid var(--primary); text-align: center; }
         .result-link { display: block; margin: 10px 0; padding: 10px; background: #f0f7ff; border-radius: 6px; text-decoration: none; color: var(--accent); font-weight: bold; border: 1px solid var(--border); }
+        .upload-box { border: 2px dashed var(--border); border-radius: 10px; padding: 15px; margin-top: 18px; background: #fff; }
+        .upload-box input[type="file"] { padding: 10px; }
+        .hint { font-size: 0.8rem; color: #57606a; margin-top: 6px; line-height: 1.5; }
+        .empty-hint { font-size: 0.85rem; color: #57606a; background: #f6f8fa; border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-top: 12px; }
+
     </style>
+    <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 </head>
 <body>
 
@@ -94,8 +100,16 @@
         </div>
     </details>
 
+
+    <div class="upload-box">
+        <label style="margin-top:0">ファイル / ZIP を選択:</label>
+        <input type="file" id="filePicker" multiple accept=".html,.htm,.css,.js,.json,.txt,.md,.svg,.xml,.png,.jpg,.jpeg,.gif,.webp,.ico,.pdf,.zip" onchange="handleFilePicker(event)">
+        <div class="hint">ZIPを選ぶと中身を自動で展開します。画像などのバイナリファイルもGitHubへアップロードできます。</div>
+    </div>
+
     <div id="fileContainer"></div>
-    <button class="add-btn" onclick="addFileRow()">+ ファイルを追加</button>
+    <div id="emptyHint" class="empty-hint">まだファイルは追加されていません。ファイル/ZIPを選択するとここに一覧が表示されます。</div>
+    <button class="add-btn" onclick="addFileRow(); updateEmptyHint();">+ 手入力でファイルを追加</button>
 
     <button id="execBtn" class="main-btn" onclick="run()">デプロイ開始</button>
 
@@ -121,7 +135,6 @@
             document.getElementById('token').value = savedToken;
             fetchRepoList();
         }
-        addFileRow('index.html', '<h1>Hello World</h1>', false);
     };
 
     function saveToken() { localStorage.setItem('gh_token', document.getElementById('token').value); }
@@ -246,11 +259,82 @@
         }
     });
 
-    function addFileRow(name = '', content = '', removable = true) {
+    function escapeHtml(str) {
+        return String(str).replace(/[&<>'"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[c]));
+    }
+
+    function addFileRow(name = '', content = '', removable = true, isBinary = false) {
         const div = document.createElement('div');
         div.className = 'file-item';
-        div.innerHTML = `${removable ? '<button class="remove-btn" onclick="this.parentElement.remove()">削除</button>' : ''}<input type="text" class="filename" placeholder="filename.html" value="${name}"><textarea class="filecontent" rows="3">${content}</textarea>`;
+        div.dataset.binary = isBinary ? 'true' : 'false';
+        div.dataset.base64 = isBinary ? content : '';
+        div.innerHTML = `${removable ? '<button class="remove-btn" onclick="this.parentElement.remove(); updateEmptyHint();">削除</button>' : ''}<input type="text" class="filename" placeholder="filename.html" value="${escapeHtml(name)}"><textarea class="filecontent" rows="3" ${isBinary ? 'readonly' : ''}>${isBinary ? '[binary file: base64でアップロードします]' : escapeHtml(content)}</textarea>`;
         document.getElementById('fileContainer').appendChild(div);
+        updateEmptyHint();
+    }
+
+
+    function updateEmptyHint() {
+        const hint = document.getElementById('emptyHint');
+        if (!hint) return;
+        hint.style.display = document.querySelectorAll('.file-item').length ? 'none' : 'block';
+    }
+
+    function normalizePath(path) {
+        return path.replace(/^\/+/, '').replace(/\\/g, '/');
+    }
+
+    function isProbablyText(filename) {
+        return /\.(html?|css|js|mjs|json|txt|md|svg|xml|yml|yaml|csv|map)$/i.test(filename);
+    }
+
+    async function fileToBase64(fileOrBlob) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(String(reader.result).split(',')[1]);
+            reader.onerror = reject;
+            reader.readAsDataURL(fileOrBlob);
+        });
+    }
+
+    async function blobToText(blob) {
+        return await blob.text();
+    }
+
+    async function addPickedFile(filename, blob) {
+        filename = normalizePath(filename);
+        if (!filename || filename.endsWith('/')) return;
+        if (isProbablyText(filename)) {
+            addFileRow(filename, await blobToText(blob), true, false);
+        } else {
+            addFileRow(filename, await fileToBase64(blob), true, true);
+        }
+    }
+
+    async function handleFilePicker(event) {
+        const files = Array.from(event.target.files || []);
+        if (!files.length) return;
+
+        for (const file of files) {
+            if (/\.zip$/i.test(file.name)) {
+                if (typeof JSZip === 'undefined') {
+                    alert('ZIP展開ライブラリを読み込めませんでした。インターネット接続を確認してください。');
+                    continue;
+                }
+                addLog(`ZIP展開中: ${file.name}`);
+                const zip = await JSZip.loadAsync(file);
+                const entries = Object.values(zip.files).filter(entry => !entry.dir && !entry.name.startsWith('__MACOSX/'));
+                for (const entry of entries) {
+                    const blob = await entry.async('blob');
+                    await addPickedFile(entry.name, blob);
+                }
+                addLog(`${entries.length} 個のファイルをZIPから追加しました。`);
+            } else {
+                await addPickedFile(file.name, file);
+                addLog(`ファイル追加: ${file.name}`);
+            }
+        }
+        event.target.value = '';
     }
 
     function addLog(msg) {
@@ -267,6 +351,7 @@
         const btn = document.getElementById('execBtn');
 
         if (!token || !repoName) return alert("必須項目を入力してください");
+        if (!document.querySelectorAll('.file-item').length) return alert("アップロードするファイルを選択するか、「+ ファイルを追加」で作成してください。");
 
         btn.disabled = true;
         document.getElementById('resultBox').style.display = 'none';
@@ -301,16 +386,27 @@
                 if (!name) continue;
 
                 addLog(`転送中: ${name}`);
-                const fCheck = await fetch(`https://api.github.com/repos/${username}/${repoName}/contents/${name}`, { headers });
+                const fCheck = await fetch(`https://api.github.com/repos/${username}/${repoName}/contents/${encodeURIComponent(name).replace(/%2F/g, '/')}`, { headers });
                 const sha = fCheck.ok ? (await fCheck.json()).sha : null;
 
-                const uint8 = new TextEncoder().encode(content);
-                const b64 = btoa(String.fromCharCode(...uint8));
+                let b64;
+                if (item.dataset.binary === 'true') {
+                    b64 = item.dataset.base64;
+                } else {
+                    const uint8 = new TextEncoder().encode(content);
+                    let binary = '';
+                    const chunkSize = 0x8000;
+                    for (let i = 0; i < uint8.length; i += chunkSize) {
+                        binary += String.fromCharCode(...uint8.subarray(i, i + chunkSize));
+                    }
+                    b64 = btoa(binary);
+                }
 
-                await fetch(`https://api.github.com/repos/${username}/${repoName}/contents/${name}`, {
+                const putRes = await fetch(`https://api.github.com/repos/${username}/${repoName}/contents/${encodeURIComponent(name).replace(/%2F/g, '/')}`, {
                     method: 'PUT', headers,
                     body: JSON.stringify({ message: 'Update via Deployer', content: b64, sha })
                 });
+                if (!putRes.ok) throw new Error(`${name} のアップロードに失敗しました。`);
             }
 
             // Pages設定 (409衝突回避のためtry-catch)
