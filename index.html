@@ -151,6 +151,30 @@
                     <label class="block text-sm font-medium text-gray-700 mb-1">タイトル (任意)</label>
                     <input type="text" id="pageTitle" placeholder="自動取得されます" class="w-full border border-gray-300 rounded-xl py-3 px-3 focus:ring-2 focus:ring-blue-500">
                 </div>
+
+                <div id="repoEditSection" class="hidden bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
+                    <div class="flex items-center justify-between gap-2">
+                        <div>
+                            <h3 class="text-sm font-bold text-slate-800"><i class="fa-brands fa-github"></i> GitHubリポジトリ設定</h3>
+                            <p class="text-[10px] text-slate-500 mt-1">PATに repo 権限が必要です。変更はGitHub側にも反映されます。</p>
+                        </div>
+                        <span id="repoEditOwnerLabel" class="text-[10px] bg-white border px-2 py-1 rounded-full text-slate-500"></span>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-600 mb-1">リポジトリ名を編集</label>
+                        <input type="text" id="repoEditName" pattern="[a-zA-Z0-9._-]+" placeholder="repository-name" class="w-full border border-gray-300 rounded-xl py-3 px-3 focus:ring-2 focus:ring-blue-500">
+                        <input type="hidden" id="repoEditOriginalName">
+                        <input type="hidden" id="repoEditOwner">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-600 mb-1">Pages公開設定</label>
+                        <select id="repoEditPrivate" class="w-full border border-gray-300 rounded-xl py-3 px-3 focus:ring-2 focus:ring-blue-500">
+                            <option value="false">Public（公開Pages）</option>
+                            <option value="true">Private（非公開リポジトリ / Pagesも限定公開扱い）</option>
+                        </select>
+                        <p class="text-[10px] text-gray-500 mt-1">GitHub Pages単体ではなく、リポジトリの公開/非公開を切り替えます。</p>
+                    </div>
+                </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">グループ (AI自動入力・任意)</label>
                     <input type="text" id="pageGroup" placeholder="例: クライアントA" class="w-full border border-gray-300 rounded-xl py-3 px-3 focus:ring-2 focus:ring-blue-500" list="groupList">
@@ -186,6 +210,13 @@
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">説明 (任意)</label>
                     <input type="text" id="newRepoDesc" placeholder="リポジトリの説明" class="w-full border border-gray-300 rounded-xl py-3 px-3 focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Pages公開設定</label>
+                    <select id="newRepoPrivate" class="w-full border border-gray-300 rounded-xl py-3 px-3 focus:ring-2 focus:ring-blue-500">
+                        <option value="false">Public（公開Pages）</option>
+                        <option value="true">Private（非公開リポジトリ）</option>
+                    </select>
                 </div>
                 <div class="flex gap-3 pb-safe pt-2">
                     <button type="button" onclick="history.back()" class="flex-1 py-3 bg-gray-100 text-gray-700 rounded-xl font-medium ripple-target min-h-[48px]">キャンセル</button>
@@ -421,16 +452,25 @@
                             if (res.status === 304) return self.postMessage({ type: 'METADATA_RESULT', payload: { id: payload.id, status: 'not_modified' } });
                             if (res.ok) {
                                 const data = await res.json();
-                                return self.postMessage({ type: 'METADATA_RESULT', payload: { id: payload.id, title: data.name, description: data.description || "", lastUpdated: data.updated_at, githubRepoUrl: data.html_url, status: 'success' }});
+                                return self.postMessage({ type: 'METADATA_RESULT', payload: { id: payload.id, title: data.name, description: data.description || "", lastUpdated: data.updated_at, githubRepoUrl: data.html_url, repoName: data.name, repoOwner: data.owner && data.owner.login, repoPrivate: !!data.private, status: 'success' }});
                             }
                         }
                         self.postMessage({ type: 'METADATA_RESULT', payload: { id: payload.id, status: 'error' } });
                     }
                     else if (type === 'CREATE_REPO') {
                         headers['Content-Type'] = 'application/json';
-                        const res = await fetch('https://api.github.com/user/repos', { method: 'POST', headers, body: JSON.stringify({ name: payload.name, description: payload.description, has_pages: true, auto_init: true }) });
+                        const res = await fetch('https://api.github.com/user/repos', { method: 'POST', headers, body: JSON.stringify({ name: payload.name, description: payload.description, private: !!payload.private, has_pages: true, auto_init: true }) });
                         if(res.ok) self.postMessage({ type: 'CREATE_REPO_RESULT', payload: { status: 'success', data: await res.json() } });
                         else throw new Error("API Error");
+                    }
+                    else if (type === 'UPDATE_REPO_SETTINGS') {
+                        headers['Content-Type'] = 'application/json';
+                        const body = {};
+                        if (payload.newName && payload.newName !== payload.repo) body.name = payload.newName;
+                        if (typeof payload.private === 'boolean') body.private = payload.private;
+                        const res = await fetch(\`https://api.github.com/repos/\${payload.owner}/\${payload.repo}\`, { method: 'PATCH', headers, body: JSON.stringify(body) });
+                        if(res.ok) self.postMessage({ type: 'UPDATE_REPO_SETTINGS_RESULT', payload: { status: 'success', id: payload.id, data: await res.json() } });
+                        else self.postMessage({ type: 'UPDATE_REPO_SETTINGS_RESULT', payload: { status: 'error', id: payload.id, code: res.status } });
                     }
                     else if (type === 'DELETE_REPO') {
                         const res = await fetch(\`https://api.github.com/repos/\${payload.owner}/\${payload.repo}\`, { method: 'DELETE', headers });
@@ -492,8 +532,13 @@
                         document.getElementById('pageTags').value = (p.tags||[]).join(', ');
                         document.getElementById('pageDesc').value = p.description || '';
                         document.getElementById('pageMemo').value = p.memo || ''; 
+                        App.updateRepoEditSection(p);
                     }
-                } else document.getElementById('pageId').value = '';
+                } else {
+                    document.getElementById('pageId').value = '';
+                    const section = document.getElementById('repoEditSection');
+                    if (section) section.classList.add('hidden');
+                }
                 this.openModal('addModal');
             },
             openSettingsModal() { this.openModal('settingsModal'); },
@@ -519,6 +564,48 @@
                     const v = document.getElementById(k).value.trim(); if(v) localStorage.setItem(k, v); else localStorage.removeItem(k);
                 }); UI.showToast("設定を保存しました", "success");
                 this.importReposFromGithub(false);
+            },
+
+            getRepoParts(page) {
+                if (!page) return null;
+                const repoUrl = page.githubRepoUrl || '';
+                let m = repoUrl.match(/github\.com\/([^\/]+)\/([^\/#?]+)/i);
+                if (m) return { owner: m[1], repo: m[2].replace(/\.git$/, '') };
+                const url = page.url || '';
+                m = url.match(/https?:\/\/([\w-]+)\.github\.io\/?([\w.\-]+)?/i);
+                if (m) return { owner: m[1], repo: m[2] || `${m[1]}.github.io` };
+                return null;
+            },
+
+            updateRepoEditSection(page) {
+                const section = document.getElementById('repoEditSection');
+                if (!section) return;
+                const parts = this.getRepoParts(page);
+                if (!parts) { section.classList.add('hidden'); return; }
+                section.classList.remove('hidden');
+                document.getElementById('repoEditOwner').value = parts.owner;
+                document.getElementById('repoEditOriginalName').value = page.repoName || parts.repo;
+                document.getElementById('repoEditName').value = page.repoName || parts.repo;
+                document.getElementById('repoEditPrivate').value = page.repoPrivate ? 'true' : 'false';
+                document.getElementById('repoEditOwnerLabel').innerText = parts.owner;
+            },
+
+            applyRepoSettingsIfNeeded(page) {
+                if (!page || !page.id) return;
+                const section = document.getElementById('repoEditSection');
+                if (!section || section.classList.contains('hidden')) return;
+                const pat = localStorage.getItem('githubPat') || localStorage.getItem('gh_token');
+                if (!pat) return;
+                const owner = document.getElementById('repoEditOwner').value;
+                const originalName = document.getElementById('repoEditOriginalName').value;
+                const newName = document.getElementById('repoEditName').value.trim();
+                const privateValue = document.getElementById('repoEditPrivate').value === 'true';
+                if (!owner || !originalName || !newName) return;
+                const nameChanged = newName !== originalName;
+                const privateChanged = privateValue !== !!page.repoPrivate;
+                if (!nameChanged && !privateChanged) return;
+                UI.showToast('GitHubリポジトリ設定を更新中...', 'info');
+                worker.postMessage({ type: 'UPDATE_REPO_SETTINGS', payload: { id: page.id, owner, repo: originalName, newName, private: privateValue, pat } });
             },
 
             async backgroundDiffSync() {
@@ -575,7 +662,10 @@
                                 createdAt: now,
                                 updatedAt: now,
                                 githubRepoUrl: repo.html_url,
-                                githubUpdatedAt: repo.updated_at
+                                githubUpdatedAt: repo.updated_at,
+                                repoOwner: owner,
+                                repoName: repo.name,
+                                repoPrivate: !!repo.private
                             };
                             this.pages.unshift(p);
                             changedPages.push(p);
@@ -585,6 +675,9 @@
                             if (!p.description && repo.description) p.description = repo.description;
                             p.githubRepoUrl = repo.html_url;
                             p.githubUpdatedAt = repo.updated_at;
+                            p.repoOwner = owner;
+                            p.repoName = repo.name;
+                            p.repoPrivate = !!repo.private;
                             p.lastBackgroundSync = new Date().toISOString();
                             changedPages.push(p);
                             changed++;
@@ -639,7 +732,7 @@
                         const pagesUrl = `https://${owner}.github.io/${repo.name}/`;
                         let p = this.pages.find(x => x.githubRepoUrl === repo.html_url || x.url === pagesUrl);
                         if (!p) {
-                            p = { id: 'p_' + now + '_' + added, url: pagesUrl, title: repo.name, description: repo.description || '', group: repo.owner.login === user.login ? '自分のリポジトリ' : repo.owner.login, tags: ['GitHub'], memo: '', isFavorite: false, createdAt: now, updatedAt: now };
+                            p = { id: 'p_' + now + '_' + added, url: pagesUrl, title: repo.name, description: repo.description || '', group: repo.owner.login === user.login ? '自分のリポジトリ' : repo.owner.login, tags: ['GitHub'], memo: '', isFavorite: false, createdAt: now, updatedAt: now, repoOwner: owner, repoName: repo.name, repoPrivate: !!repo.private };
                             this.pages.unshift(p); added++;
                         } else {
                             if (!p.hasCustomTitle) p.title = repo.name;
@@ -648,6 +741,9 @@
                         }
                         p.githubRepoUrl = repo.html_url;
                         p.githubUpdatedAt = repo.updated_at;
+                        p.repoOwner = owner;
+                        p.repoName = repo.name;
+                        p.repoPrivate = !!repo.private;
                         await db.put('pages', p);
                     }
                     this.pages.sort((a,b)=> (b.updatedAt||0) - (a.updatedAt||0));
@@ -670,6 +766,9 @@
                             if(!p.description && payload.description) p.description = payload.description; // 概要が空の場合のみGitHubから補完
                             p.githubUpdatedAt = payload.lastUpdated; 
                             p.githubRepoUrl = payload.githubRepoUrl; 
+                            if (payload.repoName) p.repoName = payload.repoName;
+                            if (payload.repoOwner) p.repoOwner = payload.repoOwner;
+                            if (typeof payload.repoPrivate === 'boolean') p.repoPrivate = payload.repoPrivate;
                             p.lastFetch = new Date().toISOString(); 
                             db.put('pages', p); 
                             this.renderList(); 
@@ -681,9 +780,28 @@
                         document.getElementById('createRepoBtn').innerHTML = '<i class="fa-solid fa-rocket"></i> 作成する';
                         if (payload.status === 'success') {
                             const now = Date.now();
-                            const p = { id: 'p_'+now, url: `https://${payload.data.owner.login}.github.io/${payload.data.name}/`, title: payload.data.name, description: payload.data.description, group: '未分類', tags: [], memo: '', createdAt: now, updatedAt: now };
+                            const p = { id: 'p_'+now, url: `https://${payload.data.owner.login}.github.io/${payload.data.name}/`, title: payload.data.name, description: payload.data.description, group: '未分類', tags: [], memo: '', createdAt: now, updatedAt: now, githubRepoUrl: payload.data.html_url, repoOwner: payload.data.owner.login, repoName: payload.data.name, repoPrivate: !!payload.data.private };
                             this.pages.unshift(p); await db.put('pages', p); this.renderList(); history.back(); UI.showToast("リポジトリを作成しました", "success");
                         } else UI.showToast("リポジトリ作成に失敗しました。PATの権限等を確認してください", "error");
+                    } else if (type === 'UPDATE_REPO_SETTINGS_RESULT') {
+                        const p = this.pages.find(x => x.id === payload.id);
+                        if (payload.status === 'success' && p) {
+                            const data = payload.data;
+                            const owner = data.owner && data.owner.login ? data.owner.login : (p.repoOwner || '');
+                            p.repoOwner = owner;
+                            p.repoName = data.name;
+                            p.repoPrivate = !!data.private;
+                            p.githubRepoUrl = data.html_url;
+                            p.url = `https://${owner}.github.io/${data.name}/`;
+                            if (!p.hasCustomTitle) p.title = data.name;
+                            p.githubUpdatedAt = data.updated_at;
+                            p.updatedAt = Date.now();
+                            await db.put('pages', p);
+                            this.renderList();
+                            UI.showToast('リポジトリ設定を更新しました', 'success');
+                        } else {
+                            UI.showToast('リポジトリ設定の更新に失敗しました。PAT権限を確認してください', 'error');
+                        }
                     } else if (type === 'DELETE_REPO_RESULT') {
                         if (payload.status === 'success') UI.showToast("GitHub上のリポジトリを削除しました", "success");
                         else UI.showToast("GitHub上の削除に失敗しました（ローカルのみ削除されます）", "error");
@@ -751,6 +869,7 @@
                 
                 // Requirement 3: フォームに反映されたタグやグループをIndexedDBに保存する処理
                 if(!id) this.pages.unshift(p); await db.put('pages', p);
+                if (id) this.applyRepoSettingsIfNeeded(p);
                 history.back(); this.renderList(); UI.showToast("保存しました", "success");
                 worker.postMessage({ type: 'FETCH_METADATA', payload: { id: p.id, url: p.url, pat: localStorage.getItem('githubPat') } });
                 
@@ -761,10 +880,11 @@
             async handleCreateRepo(e) {
                 e.preventDefault();
                 const name = document.getElementById('newRepoName').value.trim(); const desc = document.getElementById('newRepoDesc').value.trim();
+                const isPrivate = document.getElementById('newRepoPrivate') && document.getElementById('newRepoPrivate').value === 'true';
                 const pat = localStorage.getItem('githubPat');
                 if(!pat) return UI.showToast("設定からGitHub PATを登録してください", "error");
                 document.getElementById('createRepoBtn').innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 作成中...';
-                worker.postMessage({ type: 'CREATE_REPO', payload: { pat, name, description: desc } });
+                worker.postMessage({ type: 'CREATE_REPO', payload: { pat, name, description: desc, private: isPrivate } });
             },
 
             confirmDelete(id) { this.targetDeleteId = id; document.getElementById('deleteRepoCheck').checked = false; UI.openModal('deleteModal'); },
@@ -950,7 +1070,7 @@
                 const renderCards = (pagesArr) => `<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">` + pagesArr.map(p => `
                     <div class="card p-4 relative cursor-pointer flex flex-col h-full ripple-target" onclick="window.open('${p.url}', '_blank')">
                         <div class="flex justify-between items-start mb-2">
-                            <h3 class="font-bold text-gray-800 truncate text-lg pr-2">${p.title}</h3>
+                            <h3 class="font-bold text-gray-800 truncate text-lg pr-2">${p.repoPrivate ? '<i class="fa-solid fa-lock text-xs text-gray-400 mr-1"></i>' : '<i class="fa-solid fa-globe text-xs text-green-500 mr-1"></i>'}${p.title}</h3>
                             <div class="flex items-center gap-1 shrink-0">
                                 <!-- Requirement 1: GitHub Link Icon -->
                                 ${p.githubRepoUrl ? `<button onclick="event.stopPropagation(); window.open('${p.githubRepoUrl}', '_blank')" class="touch-target text-xl text-gray-400 hover:text-gray-800 transition -mt-2" title="GitHubリポジトリ"><i class="fa-brands fa-github"></i></button>` : ''}
@@ -1273,7 +1393,7 @@
                     const now = Date.now();
                     let p = App.pages.find(x => x.url === site);
                     if (!p) { p = { id: 'p_'+now, url: site, title: repoName, group: 'デプロイ済み', tags: ['GitHub Pages'], memo: '', createdAt: now, updatedAt: now }; App.pages.unshift(p); }
-                    p.githubRepoUrl = repo; p.updatedAt = now;
+                    p.githubRepoUrl = repo; p.repoOwner = username; p.repoName = repoName; p.repoPrivate = document.getElementById('deployRepoVisibility').value === 'true'; p.updatedAt = now;
                     await db.put('pages', p); App.renderList();
                 } catch (err) {
                     this.addLog(`❌ エラー: ${err.message}`); UI.showToast(err.message, 'error');
