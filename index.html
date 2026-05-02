@@ -2,442 +2,1150 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GitHub Instant Deployer v15.2</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#2563eb">
+    <title>My GitHub Pages Hub</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Marked.js & DOMPurify -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
+    <!-- JSZip for ZIP deploy upload -->
+    <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+    <link rel="manifest" id="manifest" href="">
     <style>
         :root {
-            --bg: #f6f8fa; --card-bg: #ffffff; --text: #24292f;
-            --border: #d0d7de; --primary: #2da44e; --input-bg: #ffffff;
-            --log-bg: #24292f; --log-text: #adbac7; --accent: #0969da;
-            --guide-bg: #f0f7ff; --error: #cf222e; --warning: #fff8c5;
+            --bg-color: #f3f4f6;
+            --card-bg: #ffffff;
+            --text-main: #1f2937;
+            --primary: #2563eb;
+            --safe-bottom: env(safe-area-inset-bottom, 0px);
         }
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 15px; }
-        .card { background: var(--card-bg); padding: 20px; border-radius: 12px; border: 1px solid var(--border); max-width: 600px; margin: auto; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
-        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
-        .setup-link { background: var(--warning); color: #24292f; padding: 12px; border-radius: 8px; font-size: 0.85rem; margin-bottom: 20px; border: 1px solid #d4a017; text-align: center; }
-        .setup-link a { color: var(--accent); font-weight: bold; }
-
-        label { display: block; margin-top: 15px; font-weight: bold; font-size: 0.9rem; }
-        input, textarea, select { width: 100%; padding: 12px; margin-top: 5px; border: 1px solid var(--border); border-radius: 8px; box-sizing: border-box; font-size: 16px; background: var(--input-bg); color: var(--text); }
-
-        .repo-select-container { position: relative; margin-top: 5px; }
-        .dropdown-list {
-            position: absolute; width: 100%; max-height: 280px; overflow-y: auto;
-            background: white; border: 1px solid var(--border); border-radius: 8px;
-            z-index: 1000; display: none; margin-top: 4px; box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            -webkit-tap-highlight-color: transparent;
+            padding-bottom: calc(80px + var(--safe-bottom));
         }
-        .dropdown-item { padding: 10px 15px; cursor: pointer; border-bottom: 1px solid #f1f1f1; display: flex; flex-direction: column; }
-        .dropdown-item:hover, .dropdown-item.active { background: #f0f7ff; }
-        .dropdown-item .repo-title { font-weight: bold; display: flex; align-items: center; gap: 6px; }
-        .dropdown-item .repo-meta { font-size: 0.75rem; color: #6e7781; margin-top: 2px; }
-
-        /* リポジトリ・Pagesリンク表示エリア */
-        .selected-repo-link { 
-            display: none; margin-top: 8px; font-size: 0.8rem; 
-            padding: 10px 12px; background: #f6f8fa; border-radius: 6px;
-            border: 1px solid var(--border); flex-direction: column; gap: 5px;
+        .card {
+            background-color: var(--card-bg);
+            border-radius: 16px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            transition: transform 0.2s, box-shadow 0.2s;
         }
-        .selected-repo-link a { color: var(--accent); text-decoration: none; font-weight: bold; }
-        .selected-repo-link a:hover { text-decoration: underline; }
-        .pages-found { color: var(--primary) !important; }
-
-        .status-tag { font-size: 0.7rem; border: 1px solid var(--border); padding: 1px 5px; border-radius: 10px; color: #6e7781; }
-        .file-item { border: 1px solid var(--border); padding: 15px; border-radius: 8px; margin-top: 10px; position: relative; }
-        .remove-btn { position: absolute; top: 10px; right: 10px; color: var(--error); cursor: pointer; border: none; background: none; font-size: 0.8rem; font-weight: bold; }
-        .add-btn { background: none; border: 1px dashed var(--border); color: var(--text); width: 100%; padding: 10px; margin-top: 10px; border-radius: 8px; cursor: pointer; }
-
-        button.main-btn { background: var(--primary); color: white; border: none; padding: 16px; border-radius: 8px; cursor: pointer; width: 100%; font-weight: bold; font-size: 1.1rem; margin-top: 25px; }
-        #progressContainer { display: none; margin-top: 20px; text-align: center; }
-        .spinner { border: 4px solid rgba(0,0,0,0.1); border-left-color: var(--primary); border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; margin: 0 auto 10px; }
-        @keyframes spin { to { transform: rotate(360deg); } }
-        #log { margin-top: 20px; font-size: 0.75rem; background: var(--log-bg); color: var(--log-text); padding: 12px; border-radius: 8px; height: 120px; overflow-y: auto; font-family: monospace; }
-        .result-box { margin-top: 20px; padding: 20px; border-radius: 10px; display: none; border: 2px solid var(--primary); text-align: center; }
-        .result-link { display: block; margin: 10px 0; padding: 10px; background: #f0f7ff; border-radius: 6px; text-decoration: none; color: var(--accent); font-weight: bold; border: 1px solid var(--border); }
-        .upload-box { border: 2px dashed var(--border); border-radius: 10px; padding: 15px; margin-top: 18px; background: #fff; }
-        .upload-box input[type="file"] { padding: 10px; }
-        .hint { font-size: 0.8rem; color: #57606a; margin-top: 6px; line-height: 1.5; }
-        .empty-hint { font-size: 0.85rem; color: #57606a; background: #f6f8fa; border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-top: 12px; }
-
+        .card:active { transform: scale(0.98); }
+        .bottom-nav { background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(10px); border-top: 1px solid #e5e7eb; padding-bottom: var(--safe-bottom); }
+        .modal-overlay { background-color: rgba(0, 0, 0, 0.5); backdrop-filter: blur(4px); }
+        .loader { border: 3px solid #f3f3f3; border-top: 3px solid var(--primary); border-radius: 50%; width: 24px; height: 24px; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .toast { animation: slideUp 0.3s ease-out forwards, fadeOut 0.3s ease-in 3.7s forwards; }
+        @keyframes slideUp { from { transform: translateY(100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        @keyframes fadeOut { from { opacity: 1; } to { opacity: 0; } }
+        ::-webkit-scrollbar { width: 0px; background: transparent; }
+        .ripple-target { position: relative; overflow: hidden; }
+        .ripple { position: absolute; border-radius: 50%; transform: scale(0); animation: ripple-anim 600ms linear; background-color: rgba(0, 0, 0, 0.15); pointer-events: none; }
+        .bg-blue-600 .ripple { background-color: rgba(255, 255, 255, 0.4); }
+        @keyframes ripple-anim { to { transform: scale(4); opacity: 0; } }
+        .prose pre { background-color: #1f2937 !important; border-radius: 0.5rem; }
+        .prose img { max-width: 100%; border-radius: 0.5rem; }
+        .touch-target { min-width: 48px; min-height: 48px; display: flex; align-items: center; justify-content: center; }
+        .hide-scroll::-webkit-scrollbar { display: none; }
+        .hide-scroll { -ms-overflow-style: none; scrollbar-width: none; }
+        .line-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
     </style>
-    <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 </head>
 <body>
 
-<div class="card">
-    <div class="header"><h2>🌐 GitHub Deployer v15.2</h2></div>
+    <!-- Header -->
+    <header class="sticky top-0 z-10 bg-white/90 backdrop-blur-md shadow-sm px-4 py-3 flex justify-between items-center pt-[max(env(safe-area-inset-top),12px)]">
+        <h1 class="text-xl font-bold flex items-center gap-2">
+            <i class="fa-brands fa-github text-2xl"></i> MyPages Hub
+        </h1>
+        <div class="flex items-center gap-2">
+            <span id="sync-status" class="text-xs text-blue-600 hidden bg-blue-50 px-3 py-1.5 rounded-full font-bold shadow-sm flex items-center gap-2">
+                <span><i class="fa-solid fa-arrows-rotate fa-spin mr-1"></i> <span id="sync-progress-text">同期中...</span></span>
+                <button onclick="App.cancelSync()" class="text-red-500 hover:text-red-700 ml-1 pl-2 border-l border-blue-200 transition touch-target">停止</button>
+            </span>
+            <button onclick="UI.openSettingsModal()" class="touch-target rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200 transition ripple-target">
+                <i class="fa-solid fa-gear text-lg"></i>
+            </button>
+        </div>
+    </header>
 
-    <div class="setup-link">
-        🔑 <a href="https://github.com/settings/tokens/new?scopes=repo,workflow&description=WebDeployTool" target="_blank">トークンを新規発行する</a>
+    <!-- Main Content -->
+    <main class="p-4">
+        <div class="flex gap-2 mb-4">
+            <!-- Search -->
+            <div class="relative flex-1">
+                <i class="fa-solid fa-magnifying-glass absolute left-4 top-3.5 text-gray-400"></i>
+                <input type="text" id="searchInput" placeholder="検索..." class="w-full bg-white border border-gray-200 rounded-2xl py-3 pl-11 pr-4 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm transition min-h-[48px]">
+            </div>
+            <!-- Grouping Toggle -->
+            <button onclick="App.toggleGroupView()" id="groupToggleBtn" class="bg-white border border-gray-200 rounded-2xl px-4 text-gray-600 hover:bg-gray-50 transition shadow-sm touch-target ripple-target" title="グループ表示切替">
+                <i class="fa-solid fa-layer-group"></i>
+            </button>
+        </div>
+        
+        <!-- Tag Filter -->
+        <div class="mb-6 overflow-x-auto hide-scroll flex gap-2 pb-2 items-center" id="tagFilterContainer"></div>
+
+        <!-- Pages List -->
+        <div id="pagesList"></div>
+        
+        <div id="emptyState" class="hidden flex flex-col items-center justify-center py-20 text-gray-400">
+            <i class="fa-brands fa-github text-6xl mb-4 text-gray-300"></i>
+            <p>ページがありません</p>
+            <p class="text-xs mt-2 text-center px-4">設定からPATを登録して自動検出するか<br>右下の「＋」ボタンから追加してください</p>
+        </div>
+    </main>
+
+    <!-- Bottom Navigation -->
+    <nav class="bottom-nav fixed bottom-0 w-full z-20 flex justify-around items-center py-1 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
+        <button onclick="App.renderPages()" class="flex flex-col items-center text-blue-600 touch-target w-16 ripple-target rounded-xl"><i class="fa-solid fa-house text-xl mb-1"></i><span class="text-[10px] font-medium">ホーム</span></button>
+        <button onclick="App.renderFavorites()" class="flex flex-col items-center text-gray-400 hover:text-blue-600 transition touch-target w-16 ripple-target rounded-xl"><i class="fa-solid fa-star text-xl mb-1"></i><span class="text-[10px] font-medium">お気に入り</span></button>
+        <!-- FAB Center -->
+        <div class="relative -top-6">
+            <button onclick="UI.openAddModal()" class="w-14 h-14 bg-blue-600 rounded-full shadow-lg flex items-center justify-center text-white text-2xl hover:bg-blue-700 transition transform hover:scale-105 active:scale-95 ripple-target"><i class="fa-solid fa-plus"></i></button>
+        </div>
+        <button onclick="App.syncAll()" class="flex flex-col items-center text-gray-400 hover:text-blue-600 transition touch-target w-16 ripple-target rounded-xl"><i class="fa-solid fa-rotate-right text-xl mb-1"></i><span class="text-[10px] font-medium">同期</span></button>
+        <button onclick="UI.openHistoryModal()" class="flex flex-col items-center text-gray-400 hover:text-blue-600 transition touch-target w-16 ripple-target rounded-xl"><i class="fa-solid fa-clock-rotate-left text-xl mb-1"></i><span class="text-[10px] font-medium">復元</span></button>
+    </nav>
+
+    <!-- Add/Edit/Create Modal -->
+    <div id="addModal" class="fixed inset-0 z-50 hidden flex items-end sm:items-center justify-center">
+        <div class="modal-overlay absolute inset-0" onclick="history.back()"></div>
+        <div class="bg-white w-full sm:w-[450px] max-h-[90vh] overflow-y-auto rounded-t-3xl sm:rounded-3xl p-6 relative z-10 transform transition-transform translate-y-full" id="addModalContent">
+            <div class="w-12 h-1.5 bg-gray-300 rounded-full mx-auto mb-4 sm:hidden"></div>
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-bold" id="modalTitle">ページの追加</h2>
+                <div class="flex bg-gray-100 rounded-lg p-1" id="addTabs">
+                    <button onclick="App.switchAddTab('exist')" id="tabExist" class="px-3 py-1 text-sm font-bold bg-white shadow-sm rounded-md text-blue-600">既存追加</button>
+                    <button onclick="App.switchAddTab('new')" id="tabNew" class="px-3 py-1 text-sm font-bold text-gray-500 rounded-md">新規作成</button>
+                    <button onclick="App.switchAddTab('deploy')" id="tabDeploy" class="px-3 py-1 text-sm font-bold text-gray-500 rounded-md">デプロイ</button>
+                </div>
+            </div>
+
+            <!-- Existing Page Form -->
+            <form id="pageForm" onsubmit="App.handleSavePage(event)" class="space-y-4">
+                <input type="hidden" id="pageId">
+
+                <!-- Requirement 2, 3: AI Assist Section -->
+                <div class="bg-purple-50 p-4 rounded-xl border border-purple-100 flex flex-col gap-2">
+                    <div class="flex justify-between items-center">
+                        <span class="text-sm font-bold text-purple-800"><i class="fa-solid fa-robot"></i> AIアシスト生成</span>
+                        <button type="button" onclick="App.generateMetaAI()" class="text-xs px-3 py-2 bg-purple-600 text-white rounded-lg shadow-sm font-bold flex items-center gap-1 ripple-target"><i class="fa-solid fa-wand-magic-sparkles"></i> 情報を自動入力</button>
+                    </div>
+                    <p class="text-[10px] text-purple-600">入力されたURLやタイトル等から、グループ・タグ・概要をAIが予測して埋めます。</p>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">GitHub Pages URL *</label>
+                    <input type="url" id="pageUrl" required placeholder="https://user.github.io/repo/" class="w-full border border-gray-300 rounded-xl py-3 px-3 focus:ring-2 focus:ring-blue-500">
+                    <p class="text-xs text-red-500 mt-1 hidden" id="urlError">有効なURLを入力してください。</p>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">タイトル (任意)</label>
+                    <input type="text" id="pageTitle" placeholder="自動取得されます" class="w-full border border-gray-300 rounded-xl py-3 px-3 focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">グループ (AI自動入力・任意)</label>
+                    <input type="text" id="pageGroup" placeholder="例: クライアントA" class="w-full border border-gray-300 rounded-xl py-3 px-3 focus:ring-2 focus:ring-blue-500" list="groupList">
+                    <datalist id="groupList"></datalist>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">タグ (AI自動入力・カンマ区切り)</label>
+                    <input type="text" id="pageTags" placeholder="例: ツール, 予約" class="w-full border border-gray-300 rounded-xl py-3 px-3 focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">概要 (AI要約・任意)</label>
+                    <textarea id="pageDesc" rows="2" placeholder="リポジトリの概要やAIによる要約" class="w-full border border-gray-300 rounded-xl py-3 px-3 focus:ring-2 focus:ring-blue-500"></textarea>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">個人的なメモ</label>
+                    <textarea id="pageMemo" rows="2" class="w-full border border-gray-300 rounded-xl py-3 px-3 focus:ring-2 focus:ring-blue-500"></textarea>
+                </div>
+                <div class="flex gap-3 pb-safe pt-2">
+                    <button type="button" onclick="history.back()" class="flex-1 py-3 bg-gray-100 text-gray-700 rounded-xl font-medium ripple-target min-h-[48px]">キャンセル</button>
+                    <button type="submit" class="flex-1 py-3 bg-blue-600 text-white rounded-xl font-medium flex justify-center items-center gap-2 ripple-target min-h-[48px]"><i class="fa-solid fa-check"></i> 保存して更新</button>
+                </div>
+            </form>
+
+            <!-- New Repo Form -->
+            <form id="repoForm" onsubmit="App.handleCreateRepo(event)" class="hidden space-y-4">
+                <div class="bg-blue-50 text-blue-800 text-xs p-3 rounded-xl border border-blue-100 mb-2">
+                    <i class="fa-solid fa-circle-info"></i> 設定にPAT(repo権限)が登録されている必要があります。空のリポジトリが作成されます。
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">リポジトリ名 (英数字) *</label>
+                    <input type="text" id="newRepoName" required pattern="[a-zA-Z0-9\-_]+" placeholder="my-new-project" class="w-full border border-gray-300 rounded-xl py-3 px-3 focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">説明 (任意)</label>
+                    <input type="text" id="newRepoDesc" placeholder="リポジトリの説明" class="w-full border border-gray-300 rounded-xl py-3 px-3 focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div class="flex gap-3 pb-safe pt-2">
+                    <button type="button" onclick="history.back()" class="flex-1 py-3 bg-gray-100 text-gray-700 rounded-xl font-medium ripple-target min-h-[48px]">キャンセル</button>
+                    <button type="submit" id="createRepoBtn" class="flex-1 py-3 bg-green-600 text-white rounded-xl font-medium flex justify-center items-center gap-2 ripple-target min-h-[48px]"><i class="fa-solid fa-rocket"></i> 作成する</button>
+                </div>
+            </form>
+
+            <!-- Deploy Form -->
+            <form id="deployForm" onsubmit="Deploy.handleDeploy(event)" class="hidden space-y-4">
+                <div class="bg-green-50 text-green-800 text-xs p-3 rounded-xl border border-green-100">
+                    <i class="fa-solid fa-upload"></i> ファイルまたはZIPを選ぶだけで、GitHub Pagesへ直接デプロイできます。初期 index.html は自動追加しません。
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">GitHub PAT *</label>
+                    <input type="password" id="deployToken" placeholder="ghp_..." class="w-full border border-gray-300 rounded-xl py-3 px-3 focus:ring-2 focus:ring-blue-500" oninput="Deploy.saveToken(); Deploy.fetchRepoList()">
+                    <p class="text-[10px] text-gray-500 mt-1">設定画面のPATがあれば自動入力されます。</p>
+                </div>
+
+                <div class="relative">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">リポジトリ名 *</label>
+                    <input type="text" id="deployRepoName" placeholder="my-website" autocomplete="off" class="w-full border border-gray-300 rounded-xl py-3 px-3 focus:ring-2 focus:ring-blue-500" oninput="Deploy.filterRepos()" onclick="Deploy.showDropdown()">
+                    <div id="deployRepoDropdown" class="absolute left-0 right-0 max-h-64 overflow-y-auto bg-white border border-gray-200 rounded-xl shadow-xl z-50 hidden mt-1"></div>
+                    <div id="deployRepoLinkArea" class="hidden mt-2 text-xs p-3 bg-gray-50 rounded-xl border border-gray-200 flex-col gap-1">
+                        <a id="deploySelectedRepoUrl" href="#" target="_blank" class="text-blue-600 font-bold">リポジトリを開く</a>
+                        <a id="deployExistingPagesUrl" href="#" target="_blank" class="text-green-600 font-bold hidden">公開済みサイトを表示</a>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">公開設定（新規作成時）</label>
+                    <select id="deployRepoVisibility" class="w-full border border-gray-300 rounded-xl py-3 px-3 focus:ring-2 focus:ring-blue-500">
+                        <option value="false">Public（公開）</option>
+                        <option value="true">Private（非公開）</option>
+                    </select>
+                </div>
+
+                <details class="bg-gray-50 rounded-xl border border-gray-200 p-3">
+                    <summary class="font-bold text-sm cursor-pointer">公開ドメイン設定（任意）</summary>
+                    <label class="block text-xs font-bold text-gray-600 mt-3 mb-1">ドメインをリストから選択</label>
+                    <select id="deployDomainSelect" class="w-full border border-gray-300 rounded-xl py-3 px-3 focus:ring-2 focus:ring-blue-500" onchange="Deploy.handleDomainSelect()">
+                        <option value="">GitHub Pages標準URLを使う</option>
+                        <option value="__manual__">手入力する</option>
+                    </select>
+                    <input type="text" id="deployCustomDomain" placeholder="example.com" class="hidden w-full border border-gray-300 rounded-xl py-3 px-3 mt-3 focus:ring-2 focus:ring-blue-500" oninput="Deploy.rememberManualDomainInput()">
+                    <p class="text-[10px] text-gray-500 mt-2">Hubに登録済みのPages URL、過去に使った独自ドメイン、選択したリポジトリの公開済みURLから候補を作ります。</p>
+                </details>
+
+                <div class="border-2 border-dashed border-gray-300 rounded-2xl p-4 bg-white">
+                    <label class="block text-sm font-bold text-gray-700 mb-2"><i class="fa-solid fa-file-zipper"></i> ファイル / ZIP を選択</label>
+                    <input type="file" id="deployFilePicker" multiple accept=".html,.htm,.css,.js,.json,.txt,.md,.svg,.xml,.png,.jpg,.jpeg,.gif,.webp,.ico,.pdf,.zip" class="w-full text-sm" onchange="Deploy.handleFilePicker(event)">
+                    <p class="text-[10px] text-gray-500 mt-2">ZIPは中身を自動展開します。画像などのバイナリファイルも対応します。</p>
+                </div>
+
+                <div id="deployFileContainer" class="space-y-2"></div>
+                <div id="deployEmptyHint" class="text-center text-xs text-gray-400 py-4 border border-gray-100 rounded-xl">まだファイルは追加されていません。</div>
+                <button type="button" onclick="Deploy.addFileRow(); Deploy.updateEmptyHint();" class="w-full py-3 border border-dashed border-gray-300 rounded-xl text-gray-600 font-bold">+ 手入力でファイルを追加</button>
+
+                <button type="submit" id="deployExecBtn" class="w-full py-3 bg-green-600 text-white rounded-xl font-bold flex justify-center items-center gap-2 min-h-[48px]"><i class="fa-solid fa-rocket"></i> デプロイ開始</button>
+
+                <div id="deployProgressContainer" class="hidden text-center py-3 text-sm text-gray-600">
+                    <div class="loader mx-auto mb-2"></div>
+                    <div>反映待ち... あと <span id="deployTimer">60</span> 秒</div>
+                </div>
+                <div id="deployLog" class="text-xs bg-gray-900 text-gray-200 p-3 rounded-xl h-32 overflow-y-auto font-mono"></div>
+                <div id="deployResultBox" class="hidden p-4 rounded-xl border-2 border-green-500 text-center bg-green-50">
+                    <b>✅ 完了しました！</b>
+                    <a id="deploySiteUrl" class="block mt-2 p-3 bg-white rounded-xl border text-blue-600 font-bold" target="_blank">サイトを確認</a>
+                    <a id="deployRepoUrl" class="block mt-2 p-3 bg-white rounded-xl border text-gray-800 font-bold" target="_blank">リポジトリを見る</a>
+                </div>
+            </form>
+        </div>
     </div>
 
-    <label>GitHub Access Token:</label>
-    <input type="password" id="token" placeholder="ghp_xxxx" oninput="saveToken(); fetchRepoList()">
+    <!-- Settings Modal -->
+    <div id="settingsModal" class="fixed inset-0 z-50 hidden flex items-end sm:items-center justify-center">
+        <div class="modal-overlay absolute inset-0" onclick="history.back()"></div>
+        <div class="bg-white w-full sm:w-[450px] max-h-[90vh] overflow-y-auto rounded-t-3xl sm:rounded-3xl p-6 relative z-10 transform transition-transform translate-y-full" id="settingsModalContent">
+            <h2 class="text-xl font-bold mb-4">設定</h2>
+            <div class="space-y-4">
+                <div class="p-4 bg-gray-50 rounded-xl border"><h3 class="font-bold mb-2">GitHub PAT (repo, delete_repo権限推奨)</h3>
+                    <input type="password" id="githubPat" placeholder="ghp_..." class="w-full border rounded-lg py-3 px-3 mb-2">
+                </div>
+                <div class="p-4 bg-purple-50 rounded-xl border"><h3 class="font-bold text-purple-800 mb-2">AI連携 (Gemini)</h3>
+                    <input type="password" id="aiApiKey" placeholder="AI API Key" class="w-full border rounded-lg py-3 px-3 mb-2">
+                    <textarea id="aiPrompt" rows="2" class="w-full border rounded-lg py-2 px-3 mb-2 hidden"></textarea>
+                    <p class="text-[10px] text-gray-500 mt-1">※APIキーはデバイス内にのみ保存されます。</p>
+                </div>
+                <button onclick="App.saveSettings()" class="w-full py-3 bg-blue-600 text-white rounded-xl font-medium ripple-target min-h-[48px]">保存</button>
+            </div>
+            <button onclick="history.back()" class="w-full mt-4 py-3 bg-gray-100 text-gray-700 rounded-xl font-medium ripple-target min-h-[48px] mb-safe">閉じる</button>
+        </div>
+    </div>
 
-    <label>リポジトリ名 (検索または新規入力):</label>
-    <div class="repo-select-container">
-        <input type="text" id="repoName" placeholder="my-website" autocomplete="off" oninput="filterRepos()" onclick="showDropdown()">
-        <div id="repoDropdown" class="dropdown-list"></div>
-        
-        <div id="repoLinkArea" class="selected-repo-link">
-            <div>📁 <a id="selectedRepoUrl" href="#" target="_blank">リポジトリを別タブで開く</a></div>
-            <div id="existingPagesArea" style="display: none; margin-top: 4px; border-top: 1px solid var(--border); pt: 5px;">
-                🚀 <a id="existingPagesUrl" href="#" target="_blank" class="pages-found">公開済みサイトを表示</a>
+    <!-- History Modal -->
+    <div id="historyModal" class="fixed inset-0 z-50 hidden flex items-end sm:items-center justify-center">
+        <div class="modal-overlay absolute inset-0" onclick="history.back()"></div>
+        <div class="bg-white w-full sm:w-[400px] rounded-t-3xl sm:rounded-3xl p-6 relative z-10 transform transition-transform translate-y-full" id="historyModalContent">
+            <h2 class="text-xl font-bold mb-4">バックアップ履歴</h2>
+            <div id="backupList" class="space-y-3 max-h-60 overflow-y-auto pr-1 hide-scroll text-sm text-gray-500 text-center py-4">履歴はありません（開発中）</div>
+            <button onclick="history.back()" class="w-full mt-6 py-3 bg-gray-100 rounded-xl mb-safe min-h-[48px]">閉じる</button>
+        </div>
+    </div>
+
+    <!-- Delete Modal -->
+    <div id="deleteModal" class="fixed inset-0 z-50 hidden flex items-end sm:items-center justify-center">
+        <div class="modal-overlay absolute inset-0" onclick="history.back()"></div>
+        <div class="bg-white w-full sm:w-[400px] rounded-t-3xl sm:rounded-3xl p-6 relative z-10 transform transition-transform translate-y-full" id="deleteModalContent">
+            <div class="text-center mb-6">
+                <div class="w-16 h-16 bg-red-100 text-red-500 rounded-full flex items-center justify-center text-3xl mx-auto mb-4"><i class="fa-solid fa-triangle-exclamation"></i></div>
+                <h2 class="text-xl font-bold text-gray-800 mb-2">ページの削除</h2>
+                <p class="text-sm text-gray-600">このページをリストから削除しますか？</p>
+            </div>
+            <div class="mb-6 p-4 bg-gray-50 border border-gray-200 rounded-xl">
+                <label class="flex items-start gap-3 cursor-pointer">
+                    <input type="checkbox" id="deleteRepoCheck" class="mt-1 w-5 h-5 text-red-600 border-gray-300 rounded focus:ring-red-500">
+                    <span class="text-sm text-gray-700"><strong>[危険]</strong> GitHub上のリポジトリも完全に削除する (設定にdelete_repo権限を持つPATが必要)</span>
+                </label>
+            </div>
+            <div class="flex gap-3 pb-safe">
+                <button onclick="history.back()" class="flex-1 py-3 bg-gray-100 text-gray-700 rounded-xl font-medium ripple-target min-h-[48px]">キャンセル</button>
+                <button onclick="App.executeDelete()" class="flex-1 py-3 bg-red-600 text-white rounded-xl font-medium flex justify-center items-center gap-2 ripple-target min-h-[48px]"><i class="fa-solid fa-trash"></i> 削除</button>
             </div>
         </div>
     </div>
 
-    <label id="visibilityLabel">公開設定 (新規作成時):</label>
-    <select id="repoVisibility">
-        <option value="false">Public (公開)</option>
-        <option value="true">Private (非公開)</option>
-    </select>
-
-    <details>
-        <summary>🌐 独自ドメイン設定 (任意)</summary>
-        <div style="padding: 15px;">
-            <label style="margin-top:0">ドメイン名</label>
-            <input type="text" id="customDomain" placeholder="example.com">
+    <!-- Actions Monitoring Modal -->
+    <div id="actionsModal" class="fixed inset-0 z-50 hidden flex items-end sm:items-center justify-center">
+        <div class="modal-overlay absolute inset-0" onclick="history.back()"></div>
+        <div class="bg-white w-full sm:w-[500px] h-[80vh] sm:max-h-[85vh] flex flex-col rounded-t-3xl sm:rounded-3xl p-0 relative z-10 transform transition-transform translate-y-full" id="actionsModalContent">
+            <div class="p-4 sm:p-6 pb-4 border-b border-gray-100 shrink-0 flex justify-between items-center pt-[max(env(safe-area-inset-top),16px)]">
+                <h2 class="text-xl font-bold flex items-center gap-2"><i class="fa-solid fa-play text-blue-500"></i> Actions履歴</h2>
+                <button onclick="history.back()" class="touch-target rounded-full bg-gray-100"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="p-4 overflow-y-auto grow bg-gray-50 pb-safe">
+                <div id="actionsLoading" class="flex justify-center py-10"><div class="loader"></div></div>
+                <div id="actionsList" class="space-y-3 hidden"></div>
+                <div id="actionsEmpty" class="hidden text-center py-10 text-gray-500"><i class="fa-solid fa-ghost text-4xl mb-3"></i><p>履歴が見つかりません</p></div>
+            </div>
         </div>
-    </details>
-
-
-    <div class="upload-box">
-        <label style="margin-top:0">ファイル / ZIP を選択:</label>
-        <input type="file" id="filePicker" multiple accept=".html,.htm,.css,.js,.json,.txt,.md,.svg,.xml,.png,.jpg,.jpeg,.gif,.webp,.ico,.pdf,.zip" onchange="handleFilePicker(event)">
-        <div class="hint">ZIPを選ぶと中身を自動で展開します。画像などのバイナリファイルもGitHubへアップロードできます。</div>
     </div>
 
-    <div id="fileContainer"></div>
-    <div id="emptyHint" class="empty-hint">まだファイルは追加されていません。ファイル/ZIPを選択するとここに一覧が表示されます。</div>
-    <button class="add-btn" onclick="addFileRow(); updateEmptyHint();">+ 手入力でファイルを追加</button>
-
-    <button id="execBtn" class="main-btn" onclick="run()">デプロイ開始</button>
-
-    <div id="progressContainer">
-        <div class="spinner"></div>
-        <div id="waitMsg">反映待ち... あと <span id="timer">60</span> 秒</div>
-    </div>
-    <div id="log"></div>
-    <div id="resultBox" class="result-box">
-        <b>✅ 完了しました！</b><br>
-        <a id="siteUrl" class="result-link" target="_blank">🔗 サイトを確認</a>
-        <a id="repoUrl" class="result-link" target="_blank" style="background: #f6f8fa; color: #24292f;">📁 リポジトリを見る</a>
-    </div>
-</div>
-
-<script>
-    let allRepos = [];
-    let currentUsername = "";
-
-    window.onload = () => {
-        const savedToken = localStorage.getItem('gh_token');
-        if(savedToken) {
-            document.getElementById('token').value = savedToken;
-            fetchRepoList();
-        }
-    };
-
-    function saveToken() { localStorage.setItem('gh_token', document.getElementById('token').value); }
-
-    async function fetchRepoList() {
-        const token = document.getElementById('token').value.trim();
-        if (!token || token.length < 10) return;
-
-        try {
-            const headers = { 'Authorization': `Bearer ${token}` };
-            
-            // ユーザー名を先に取得
-            const userRes = await fetch('https://api.github.com/user', { headers });
-            if (userRes.ok) {
-                const userData = await userRes.json();
-                currentUsername = userData.login;
-            }
-
-            const res = await fetch('https://api.github.com/user/repos?sort=updated&per_page=100', { headers });
-            if (res.ok) {
-                allRepos = await res.json();
-                addLog(`${allRepos.length} 個のリポジトリを同期しました。`);
-            }
-        } catch (err) { console.error("Repo fetch error", err); }
-    }
-
-    function showDropdown() {
-        if (allRepos.length > 0) filterRepos();
-    }
-
-    function filterRepos() {
-        const input = document.getElementById('repoName').value.toLowerCase();
-        const dropdown = document.getElementById('repoDropdown');
-        dropdown.innerHTML = '';
-
-        if (input) {
-            const createNew = document.createElement('div');
-            createNew.className = 'dropdown-item';
-            createNew.innerHTML = `<div class="repo-title">✨ Create new: "${input}"</div><div class="repo-meta">新しいリポジトリを作成します</div>`;
-            createNew.onclick = () => selectRepo(input, true);
-            dropdown.appendChild(createNew);
-        }
-
-        const filtered = allRepos.filter(r => r.name.toLowerCase().includes(input));
-
-        filtered.forEach(repo => {
-            const item = document.createElement('div');
-            item.className = 'dropdown-item';
-            const timeStr = new Date(repo.updated_at).toLocaleDateString();
-            item.innerHTML = `
-                <div class="repo-title">
-                    ${repo.name} ${repo.private ? '🔒' : '🌐'}
-                    <span class="status-tag">${repo.language || 'Code'}</span>
+    <!-- Readme Modal -->
+    <div id="readmeModal" class="fixed inset-0 z-50 hidden flex items-end sm:items-center justify-center">
+        <div class="modal-overlay absolute inset-0" onclick="history.back()"></div>
+        <div class="bg-white w-full sm:w-[800px] h-[90vh] sm:max-h-[85vh] flex flex-col rounded-t-3xl sm:rounded-3xl p-0 relative z-10 transform transition-transform translate-y-full" id="readmeModalContent">
+            <div class="p-4 sm:p-6 pb-4 border-b border-gray-100 shrink-0 bg-white pt-[max(env(safe-area-inset-top),16px)]">
+                <div class="flex justify-between items-center">
+                    <h2 class="text-xl font-bold truncate pr-4" id="readmeTitle"></h2>
+                    <div class="flex gap-2">
+                        <button onclick="App.toggleReadmeEdit()" id="readmeEditBtn" class="touch-target rounded-xl px-4 bg-gray-100 text-gray-700 font-bold hover:bg-gray-200 transition"><i class="fa-solid fa-pen"></i> 編集</button>
+                        <button onclick="history.back()" class="touch-target rounded-full bg-gray-100"><i class="fa-solid fa-xmark"></i></button>
+                    </div>
                 </div>
-                <div class="repo-meta">Last updated: ${timeStr}</div>
-            `;
-            item.onclick = () => selectRepo(repo.name, false, repo.html_url);
-            dropdown.appendChild(item);
-        });
+            </div>
+            <div class="p-4 sm:p-6 overflow-y-auto grow bg-gray-50/50 pb-safe relative" id="readmeViewArea">
+                <div id="readmeLoading" class="hidden flex justify-center py-20 text-blue-500"><div class="loader"></div></div>
+                <div id="readmeError" class="hidden text-center py-20 text-red-400">
+                    <p class="mb-4">Readmeが見つかりません</p>
+                </div>
+                <div id="readmeBody" class="prose prose-sm sm:prose-base prose-blue max-w-none"></div>
+            </div>
+            <div class="p-4 overflow-y-auto grow bg-white pb-safe hidden flex-col" id="readmeEditArea">
+                <textarea id="readmeEditor" class="w-full h-full min-h-[300px] border border-gray-300 rounded-xl p-4 font-mono text-sm focus:ring-2 focus:ring-blue-500 mb-4" placeholder="Markdown形式で入力..."></textarea>
+                <div class="flex gap-3">
+                    <button onclick="App.toggleReadmeEdit()" class="flex-1 py-3 bg-gray-100 rounded-xl font-bold">キャンセル</button>
+                    <button onclick="App.saveReadme()" class="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold"><i class="fa-solid fa-check"></i> 保存</button>
+                </div>
+            </div>
+        </div>
+    </div>
 
-        dropdown.style.display = (input || filtered.length > 0) ? 'block' : 'none';
-        document.getElementById('repoLinkArea').style.display = 'none';
-    }
+    <div id="toastContainer" class="fixed bottom-24 left-1/2 transform -translate-x-1/2 z-50 flex flex-col gap-2 pointer-events-none w-[90%] sm:w-auto items-center"></div>
 
-    async function selectRepo(name, isNew, url = '') {
-        const input = document.getElementById('repoName');
-        input.value = name;
-        document.getElementById('repoDropdown').style.display = 'none';
+    <script>
+        // --- 1. Manifest & SW Update Detection ---
+        const manifest = { name: "MyPages Hub", short_name: "MyPages", start_url: ".", display: "standalone", background_color: "#f3f4f6", theme_color: "#2563eb", icons: [{ src: "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHBhdGggZD0iTTEyIDBDNS4zNyAwIDAgNS4zNyAwIDEyYzAgNS4zMSAzLjQzNSA5LjgyNiA4LjIwNiAxMS4zODcuNi4xMTEuODE4LS4yNi44MTgtLjU3OHYtMi4wNDRjLTMuMzM4LjcyNC00LjA0Mi0xLjYxLTQuMDQyLTEuNjFDNC40MjIgMTguMDcgMy42MzMgMTcuNyAzLjYzMyAxNy43Yy0xLjA4Ny0uNzQ0LjA4NC0uNzI5LjA4NC0uNzI5IDEuMjA1LjA4NCAxLjgzOCAxLjIzNiAxLjgzOCAxLjIzNiAxLjA3IDEuODM1IDIuODA5IDEuMzA1IDMuNDk1Ljk5OC4xMDgtLjc3Ni40MTctMS4zMDUuNzYtMS42MDUtMi42NjUtLjMwMy01LjQ2Ni0xLjMzMi01LjQ2Ni01LjkzIDAtMS4zMS40NjUtMi4zOCAxLjIzNS0zLjIyMi0uMTIzLS4zMDMtLjUzNS0xLjUyMy4xMTctMy4xNzYgMCAwIDEuMDA4LS4zMjIgMy4zMDEgMS4yMy45NTctLjI2NiAxLjk4My0uMzk4IDMuMDAzLS40MDQgMS4wMi4wMDYgMi4wNDYuMTM4IDMuMDAzLjQwNCAyLjI5MS0xLjU1MiAzLjI5Ny0xLjIzIDMyLjk3LTEuMjMuNjUzIDEuNjUzLjI0MiAyLjg3NC4xMTggMy4xNzYuNzcuODQgMS4yMzUgMS45MTEgMS4yMzUgMy4yMjIgMCA0LjYxLTIuODA1IDUuNjI1LTUuNDc1IDUuOTIuNDIuMzYuODEgMS4wOTYuODEgMi4yMmwwIDMuMjJjMCAuMzIuMjE2LjY5NC44MjUuNTc2QzIwLjU2NSAyMS44MjYgMjQgMTcuMzEgMjQgMTJjMC02LjYzLLTUuMzctMTItMTItMTJ6IiBmaWxsPSIjMjU2M2ViIi8+PC9zdmc+", sizes: "192x192", type: "image/svg+xml" }] };
+        document.getElementById('manifest').href = 'data:application/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(manifest));
 
-        const visibility = document.getElementById('repoVisibility');
-        const vLabel = document.getElementById('visibilityLabel');
-        const linkArea = document.getElementById('repoLinkArea');
-        const linkTag = document.getElementById('selectedRepoUrl');
-        const pagesArea = document.getElementById('existingPagesArea');
-        const pagesTag = document.getElementById('existingPagesUrl');
-
-        // Pages表示のリセット
-        pagesArea.style.display = 'none';
-
-        if (!isNew) {
-            visibility.style.opacity = "0.5";
-            vLabel.innerText = "公開設定 (既存のため変更不可)";
-
-            if (url) {
-                linkArea.style.display = 'flex';
-                linkTag.href = url;
-                linkTag.innerText = `📁 リポジトリ: ${name}`;
-                
-                // Pagesの設定状況を確認
-                checkExistingPages(name, pagesArea, pagesTag);
-            }
-        } else {
-            visibility.style.opacity = "1";
-            vLabel.innerText = "公開設定 (新規作成時):";
-            linkArea.style.display = 'none';
-        }
-    }
-
-    async function checkExistingPages(repoName, areaEl, linkEl) {
-        const token = document.getElementById('token').value.trim();
-        if (!currentUsername || !token) return;
-
-        try {
-            const res = await fetch(`https://api.github.com/repos/${currentUsername}/${repoName}/pages`, {
-                headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/vnd.github+json' }
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./sw.js').then(reg => {
+                    reg.addEventListener('updatefound', () => {
+                        const newWorker = reg.installing;
+                        newWorker.addEventListener('statechange', () => {
+                            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                                UI.showToast(`アプリが更新されました。<button onclick="location.reload()" class="ml-2 underline font-bold text-white">再読込</button>`, "info");
+                            }
+                        });
+                    });
+                }).catch(()=>console.log("SW bypass for local dev"));
             });
-            
-            if (res.ok) {
-                const data = await res.json();
-                if (data.html_url) {
-                    areaEl.style.display = 'block';
-                    linkEl.href = data.html_url;
-                    linkEl.innerText = `🚀 公開済みサイト: ${data.html_url}`;
-                }
+        }
+
+        // --- 2. DB ---
+        class DB {
+            constructor() { this.dbName = 'MyPagesDB'; this.version = 3; this.db = null; }
+            async init() {
+                return new Promise((resolve, reject) => {
+                    const req = indexedDB.open(this.dbName, this.version);
+                    req.onupgradeneeded = (e) => {
+                        const db = e.target.result;
+                        if (!db.objectStoreNames.contains('pages')) db.createObjectStore('pages', { keyPath: 'id' });
+                        if (!db.objectStoreNames.contains('backups')) db.createObjectStore('backups', { keyPath: 'timestamp' });
+                    };
+                    req.onsuccess = e => { this.db = e.target.result; resolve(); };
+                    req.onerror = e => reject(e.target.error);
+                });
             }
-        } catch (err) { console.log("Pages info not found."); }
-    }
-
-    document.addEventListener('click', (e) => {
-        if (!e.target.closest('.repo-select-container')) {
-            document.getElementById('repoDropdown').style.display = 'none';
+            async get(s, k) { return new Promise(r => { const req = this.db.transaction(s).objectStore(s).get(k); req.onsuccess = ()=>r(req.result); }); }
+            async getAll(s) { return new Promise(r => { const req = this.db.transaction(s).objectStore(s).getAll(); req.onsuccess = ()=>r(req.result); }); }
+            async put(s, d) { return new Promise(r => { const req = this.db.transaction(s, 'readwrite').objectStore(s).put(d); req.onsuccess = ()=>r(req.result); }); }
+            async delete(s, k) { return new Promise(r => { const req = this.db.transaction(s, 'readwrite').objectStore(s).delete(k); req.onsuccess = ()=>r(); }); }
         }
-    });
+        const db = new DB();
 
-    function escapeHtml(str) {
-        return String(str).replace(/[&<>'"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[c]));
-    }
+        // --- Web Worker ---
+        const workerCode = `
+            self.onmessage = async function(e) {
+                const { type, payload } = e.data;
+                const headers = { 'Accept': 'application/vnd.github.v3+json' };
+                if (payload.pat) headers['Authorization'] = \`Bearer \${payload.pat}\`;
+                
+                try {
+                    if (type === 'FETCH_METADATA') {
+                        const match = payload.url.replace(/\\/$/, "").match(/https?:\\/\\/([\\w\\-]+)\\.github\\.io\\/?([\\w\\-\\.]+)?/i);
+                        if (match) {
+                            const user = match[1], repo = match[2];
+                            const apiUrl = repo ? \`https://api.github.com/repos/\${user}/\${repo}\` : \`https://api.github.com/users/\${user}\`;
+                            if (payload.lastFetch) headers['If-Modified-Since'] = new Date(payload.lastFetch).toUTCString();
+                            const res = await fetch(apiUrl, { headers });
+                            if (res.status === 304) return self.postMessage({ type: 'METADATA_RESULT', payload: { id: payload.id, status: 'not_modified' } });
+                            if (res.ok) {
+                                const data = await res.json();
+                                return self.postMessage({ type: 'METADATA_RESULT', payload: { id: payload.id, title: data.name, description: data.description || "", lastUpdated: data.updated_at, githubRepoUrl: data.html_url, status: 'success' }});
+                            }
+                        }
+                        self.postMessage({ type: 'METADATA_RESULT', payload: { id: payload.id, status: 'error' } });
+                    }
+                    else if (type === 'CREATE_REPO') {
+                        headers['Content-Type'] = 'application/json';
+                        const res = await fetch('https://api.github.com/user/repos', { method: 'POST', headers, body: JSON.stringify({ name: payload.name, description: payload.description, has_pages: true, auto_init: true }) });
+                        if(res.ok) self.postMessage({ type: 'CREATE_REPO_RESULT', payload: { status: 'success', data: await res.json() } });
+                        else throw new Error("API Error");
+                    }
+                    else if (type === 'DELETE_REPO') {
+                        const res = await fetch(\`https://api.github.com/repos/\${payload.owner}/\${payload.repo}\`, { method: 'DELETE', headers });
+                        if(res.ok || res.status === 404) self.postMessage({ type: 'DELETE_REPO_RESULT', payload: { status: 'success', id: payload.id } });
+                        else throw new Error("API Error");
+                    }
+                    else if (type === 'FETCH_ACTIONS') {
+                        const res = await fetch(\`https://api.github.com/repos/\${payload.owner}/\${payload.repo}/actions/runs?per_page=5\`, { headers });
+                        if(res.ok) {
+                            const data = await res.json();
+                            self.postMessage({ type: 'ACTIONS_RESULT', payload: { status: 'success', runs: data.workflow_runs } });
+                        } else throw new Error("API Error");
+                    }
+                    else if (type === 'FETCH_README') {
+                        headers['Accept'] = 'application/vnd.github.v3.raw';
+                        const res = await fetch(\`https://api.github.com/repos/\${payload.owner}/\${payload.repo}/readme\`, { headers });
+                        if (res.ok) self.postMessage({ type: 'README_RESULT', payload: { id: payload.id, status: 'success', content: await res.text() } });
+                        else self.postMessage({ type: 'README_RESULT', payload: { id: payload.id, status: 'error' } });
+                    }
+                } catch(err) { self.postMessage({ type: type+'_RESULT', payload: { status: 'error', id: payload.id } }); }
+            };
+        `;
+        const worker = new Worker(URL.createObjectURL(new Blob([workerCode], { type: 'application/javascript' })));
 
-    function addFileRow(name = '', content = '', removable = true, isBinary = false) {
-        const div = document.createElement('div');
-        div.className = 'file-item';
-        div.dataset.binary = isBinary ? 'true' : 'false';
-        div.dataset.base64 = isBinary ? content : '';
-        div.innerHTML = `${removable ? '<button class="remove-btn" onclick="this.parentElement.remove(); updateEmptyHint();">削除</button>' : ''}<input type="text" class="filename" placeholder="filename.html" value="${escapeHtml(name)}"><textarea class="filecontent" rows="3" ${isBinary ? 'readonly' : ''}>${isBinary ? '[binary file: base64でアップロードします]' : escapeHtml(content)}</textarea>`;
-        document.getElementById('fileContainer').appendChild(div);
-        updateEmptyHint();
-    }
-
-
-    function updateEmptyHint() {
-        const hint = document.getElementById('emptyHint');
-        if (!hint) return;
-        hint.style.display = document.querySelectorAll('.file-item').length ? 'none' : 'block';
-    }
-
-    function normalizePath(path) {
-        return path.replace(/^\/+/, '').replace(/\\/g, '/');
-    }
-
-    function isProbablyText(filename) {
-        return /\.(html?|css|js|mjs|json|txt|md|svg|xml|yml|yaml|csv|map)$/i.test(filename);
-    }
-
-    async function fileToBase64(fileOrBlob) {
-        return new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = () => resolve(String(reader.result).split(',')[1]);
-            reader.onerror = reject;
-            reader.readAsDataURL(fileOrBlob);
-        });
-    }
-
-    async function blobToText(blob) {
-        return await blob.text();
-    }
-
-    async function addPickedFile(filename, blob) {
-        filename = normalizePath(filename);
-        if (!filename || filename.endsWith('/')) return;
-        if (isProbablyText(filename)) {
-            addFileRow(filename, await blobToText(blob), true, false);
-        } else {
-            addFileRow(filename, await fileToBase64(blob), true, true);
-        }
-    }
-
-    async function handleFilePicker(event) {
-        const files = Array.from(event.target.files || []);
-        if (!files.length) return;
-
-        for (const file of files) {
-            if (/\.zip$/i.test(file.name)) {
-                if (typeof JSZip === 'undefined') {
-                    alert('ZIP展開ライブラリを読み込めませんでした。インターネット接続を確認してください。');
-                    continue;
+        // --- UI & State ---
+        const UI = {
+            activeModals: [],
+            showToast(msg, type = 'info') {
+                const c = document.getElementById('toastContainer');
+                const t = document.createElement('div');
+                const colors = { success: 'bg-gray-800 text-white', error: 'bg-red-600 text-white', info: 'bg-blue-600 text-white' };
+                t.className = `px-4 py-3 rounded-xl shadow-xl text-sm font-bold toast ${colors[type]} flex items-center gap-2`;
+                t.innerHTML = msg; c.appendChild(t); setTimeout(() => t.remove(), 4000);
+            },
+            openModal(id) {
+                if(this.activeModals.includes(id)) return;
+                document.getElementById(id).classList.remove('hidden'); void document.getElementById(id).offsetWidth;
+                document.getElementById(id+'Content').classList.remove('translate-y-full');
+                this.activeModals.push(id); history.pushState({ modal: id }, '');
+            },
+            closeModal(id) {
+                const el = document.getElementById(id);
+                if(el && !el.classList.contains('hidden')) {
+                    document.getElementById(id+'Content').classList.add('translate-y-full');
+                    setTimeout(() => el.classList.add('hidden'), 300);
+                    this.activeModals = this.activeModals.filter(m => m !== id);
                 }
-                addLog(`ZIP展開中: ${file.name}`);
-                const zip = await JSZip.loadAsync(file);
-                const entries = Object.values(zip.files).filter(entry => !entry.dir && !entry.name.startsWith('__MACOSX/'));
-                for (const entry of entries) {
-                    const blob = await entry.async('blob');
-                    await addPickedFile(entry.name, blob);
-                }
-                addLog(`${entries.length} 個のファイルをZIPから追加しました。`);
-            } else {
-                await addPickedFile(file.name, file);
-                addLog(`ファイル追加: ${file.name}`);
-            }
-        }
-        event.target.value = '';
-    }
-
-    function addLog(msg) {
-        const log = document.getElementById('log');
-        log.innerHTML += `<div>> ${msg}</div>`;
-        log.scrollTop = log.scrollHeight;
-    }
-
-    async function run() {
-        const token = document.getElementById('token').value.replace(/[\s\u3000]/g, '');
-        const repoName = document.getElementById('repoName').value.trim();
-        const customDomain = document.getElementById('customDomain').value.trim();
-        const isPrivate = document.getElementById('repoVisibility').value === 'true';
-        const btn = document.getElementById('execBtn');
-
-        if (!token || !repoName) return alert("必須項目を入力してください");
-        if (!document.querySelectorAll('.file-item').length) return alert("アップロードするファイルを選択するか、「+ ファイルを追加」で作成してください。");
-
-        btn.disabled = true;
-        document.getElementById('resultBox').style.display = 'none';
-        document.getElementById('log').innerHTML = '';
-        const headers = { 
-            'Authorization': `Bearer ${token}`, 
-            'Accept': 'application/vnd.github+json',
-            'X-GitHub-Api-Version': '2022-11-28'
+            },
+            openAddModal(pageId = null) {
+                document.getElementById('pageForm').reset(); document.getElementById('repoForm').reset();
+                App.switchAddTab('exist');
+                if (pageId) {
+                    const p = App.pages.find(x => x.id === pageId);
+                    if(p) {
+                        document.getElementById('pageId').value = p.id; 
+                        document.getElementById('pageUrl').value = p.url || '';
+                        document.getElementById('pageTitle').value = p.title || ''; 
+                        document.getElementById('pageGroup').value = p.group || '';
+                        document.getElementById('pageTags').value = (p.tags||[]).join(', ');
+                        document.getElementById('pageDesc').value = p.description || '';
+                        document.getElementById('pageMemo').value = p.memo || ''; 
+                    }
+                } else document.getElementById('pageId').value = '';
+                this.openModal('addModal');
+            },
+            openSettingsModal() { this.openModal('settingsModal'); },
+            openHistoryModal() { this.openModal('historyModal'); }
         };
 
-        try {
-            addLog("GitHub認証中...");
-            const userRes = await fetch('https://api.github.com/user', { headers });
-            if(!userRes.ok) throw new Error("認証失敗。トークンを確認してください。");
-            const username = (await userRes.json()).login;
+        window.addEventListener('popstate', () => { if (UI.activeModals.length > 0) UI.closeModal(UI.activeModals.pop()); });
 
-            let checkRepo = await fetch(`https://api.github.com/repos/${username}/${repoName}`, { headers });
-            if (!checkRepo.ok) {
-                addLog(`新規リポジトリ "${repoName}" を作成します...`);
-                await fetch('https://api.github.com/user/repos', {
-                    method: 'POST', headers, body: JSON.stringify({ name: repoName, auto_init: true, private: isPrivate })
-                });
-                await new Promise(r => setTimeout(r, 2000));
-            } else {
-                addLog(`既存のリポジトリ "${repoName}" を更新します。`);
-            }
+        const App = {
+            pages: [], filterMode: 'all', activeTag: null, searchQuery: '', isGroupView: false, targetDeleteId: null, currentReadmeId: null, isSyncing: false,
 
-            const fileItems = document.querySelectorAll('.file-item');
-            for (const item of fileItems) {
-                const name = item.querySelector('.filename').value.trim();
-                const content = item.querySelector('.filecontent').value;
-                if (!name) continue;
+            async init() {
+                await db.init();
+                ['githubPat', 'aiApiKey', 'aiPrompt'].forEach(k => { if(localStorage.getItem(k)) document.getElementById(k).value = localStorage.getItem(k); });
+                this.pages = await db.getAll('pages'); this.pages.sort((a,b)=>b.updatedAt-a.updatedAt);
+                this.setupWorker(); this.renderPages();
+            },
+            saveSettings() {
+                ['githubPat', 'aiApiKey', 'aiPrompt'].forEach(k => {
+                    const v = document.getElementById(k).value.trim(); if(v) localStorage.setItem(k, v); else localStorage.removeItem(k);
+                }); UI.showToast("設定を保存しました", "success");
+            },
 
-                addLog(`転送中: ${name}`);
-                const fCheck = await fetch(`https://api.github.com/repos/${username}/${repoName}/contents/${encodeURIComponent(name).replace(/%2F/g, '/')}`, { headers });
-                const sha = fCheck.ok ? (await fCheck.json()).sha : null;
+            setupWorker() {
+                worker.onmessage = async (e) => {
+                    const { type, payload } = e.data;
+                    if (type === 'METADATA_RESULT' && payload.status === 'success') {
+                        const p = this.pages.find(x => x.id === payload.id);
+                        if(p) { 
+                            p.title = p.hasCustomTitle ? p.title : payload.title; 
+                            if(!p.description && payload.description) p.description = payload.description; // 概要が空の場合のみGitHubから補完
+                            p.githubUpdatedAt = payload.lastUpdated; 
+                            p.githubRepoUrl = payload.githubRepoUrl; 
+                            p.lastFetch = new Date().toISOString(); 
+                            db.put('pages', p); 
+                            this.renderList(); 
 
-                let b64;
-                if (item.dataset.binary === 'true') {
-                    b64 = item.dataset.base64;
-                } else {
-                    const uint8 = new TextEncoder().encode(content);
-                    let binary = '';
-                    const chunkSize = 0x8000;
-                    for (let i = 0; i < uint8.length; i += chunkSize) {
-                        binary += String.fromCharCode(...uint8.subarray(i, i + chunkSize));
+                            // Requirement 5: descriptionが取得できず空の場合はAI自動要約を試みる
+                            if (!p.description) this.autoGenerateDescription(p.id);
+                        }
+                    } else if (type === 'CREATE_REPO_RESULT') {
+                        document.getElementById('createRepoBtn').innerHTML = '<i class="fa-solid fa-rocket"></i> 作成する';
+                        if (payload.status === 'success') {
+                            const now = Date.now();
+                            const p = { id: 'p_'+now, url: `https://${payload.data.owner.login}.github.io/${payload.data.name}/`, title: payload.data.name, description: payload.data.description, group: '未分類', tags: [], memo: '', createdAt: now, updatedAt: now };
+                            this.pages.unshift(p); await db.put('pages', p); this.renderList(); history.back(); UI.showToast("リポジトリを作成しました", "success");
+                        } else UI.showToast("リポジトリ作成に失敗しました。PATの権限等を確認してください", "error");
+                    } else if (type === 'DELETE_REPO_RESULT') {
+                        if (payload.status === 'success') UI.showToast("GitHub上のリポジトリを削除しました", "success");
+                        else UI.showToast("GitHub上の削除に失敗しました（ローカルのみ削除されます）", "error");
+                    } else if (type === 'ACTIONS_RESULT') {
+                        document.getElementById('actionsLoading').classList.add('hidden');
+                        const list = document.getElementById('actionsList'); list.innerHTML = '';
+                        if(payload.status === 'success' && payload.runs.length > 0) {
+                            list.classList.remove('hidden');
+                            payload.runs.forEach(r => {
+                                const statusColor = r.conclusion === 'success' ? 'text-green-500' : (r.conclusion === 'failure' ? 'text-red-500' : 'text-yellow-500');
+                                const icon = r.conclusion === 'success' ? 'fa-check-circle' : (r.conclusion === 'failure' ? 'fa-times-circle' : 'fa-spinner fa-spin');
+                                list.innerHTML += `<div class="p-4 bg-white rounded-xl shadow-sm border border-gray-100 flex items-center justify-between">
+                                    <div><p class="font-bold text-sm text-gray-800">${r.name}</p><p class="text-xs text-gray-500">${new Date(r.updated_at).toLocaleString()}</p></div>
+                                    <div class="${statusColor} flex flex-col items-end"><i class="fa-solid ${icon} text-lg mb-1"></i><a href="${r.html_url}" target="_blank" class="text-[10px] underline">詳細</a></div>
+                                </div>`;
+                            });
+                        } else { document.getElementById('actionsEmpty').classList.remove('hidden'); }
+                    } else if (type === 'README_RESULT') {
+                        const p = this.pages.find(x => x.id === payload.id);
+                        if (payload.status === 'success' && p) {
+                            p.readmeContent = payload.content; db.put('pages', p);
+                            
+                            // Requirement 5: descriptionが空の場合、取得したREADMEを使って自動要約
+                            if (!p.description) this.autoGenerateDescription(p.id);
+
+                            if (this.currentReadmeId === p.id && !document.getElementById('readmeModal').classList.contains('hidden')) {
+                                document.getElementById('readmeLoading').classList.add('hidden');
+                                document.getElementById('readmeBody').innerHTML = DOMPurify.sanitize(marked.parse(payload.content));
+                            }
+                        } else {
+                            if (this.currentReadmeId === payload.id && !document.getElementById('readmeModal').classList.contains('hidden')) {
+                                document.getElementById('readmeLoading').classList.add('hidden');
+                                document.getElementById('readmeError').classList.remove('hidden');
+                            }
+                        }
                     }
-                    b64 = btoa(binary);
+                };
+            },
+
+            // --- UI Interaction ---
+            switchAddTab(tab) {
+                document.getElementById('pageForm').classList.toggle('hidden', tab !== 'exist');
+                document.getElementById('repoForm').classList.toggle('hidden', tab !== 'new');
+                document.getElementById('deployForm').classList.toggle('hidden', tab !== 'deploy');
+                const active = 'px-3 py-1 text-sm font-bold bg-white shadow-sm rounded-md text-blue-600';
+                const inactive = 'px-3 py-1 text-sm font-bold text-gray-500 rounded-md';
+                document.getElementById('tabExist').className = tab === 'exist' ? active : inactive;
+                document.getElementById('tabNew').className = tab === 'new' ? active : inactive;
+                document.getElementById('tabDeploy').className = tab === 'deploy' ? active : inactive;
+                if (tab === 'deploy') Deploy.prepare();
+            },
+
+            async handleSavePage(e) {
+                e.preventDefault();
+                const url = document.getElementById('pageUrl').value.trim(); const id = document.getElementById('pageId').value;
+                const title = document.getElementById('pageTitle').value.trim(); const group = document.getElementById('pageGroup').value.trim();
+                const tags = document.getElementById('pageTags').value.split(',').map(t=>t.trim()).filter(t=>t);
+                const desc = document.getElementById('pageDesc').value.trim();
+                const memo = document.getElementById('pageMemo').value.trim(); 
+                const now = Date.now();
+                
+                let p = id ? this.pages.find(x => x.id === id) : { id: 'p_'+now, url, isFavorite: false, createdAt: now };
+                p.url = url; p.hasCustomTitle = !!title; p.title = title || p.title || '取得中...'; p.group = group || '未分類';
+                p.tags = tags; p.description = desc; p.memo = memo; p.updatedAt = now;
+                
+                // Requirement 3: フォームに反映されたタグやグループをIndexedDBに保存する処理
+                if(!id) this.pages.unshift(p); await db.put('pages', p);
+                history.back(); this.renderList(); UI.showToast("保存しました", "success");
+                worker.postMessage({ type: 'FETCH_METADATA', payload: { id: p.id, url: p.url, pat: localStorage.getItem('githubPat') } });
+                
+                // Requirement 5: 保存時に description が空であれば自動要約
+                if (!p.description) this.autoGenerateDescription(p.id);
+            },
+
+            async handleCreateRepo(e) {
+                e.preventDefault();
+                const name = document.getElementById('newRepoName').value.trim(); const desc = document.getElementById('newRepoDesc').value.trim();
+                const pat = localStorage.getItem('githubPat');
+                if(!pat) return UI.showToast("設定からGitHub PATを登録してください", "error");
+                document.getElementById('createRepoBtn').innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 作成中...';
+                worker.postMessage({ type: 'CREATE_REPO', payload: { pat, name, description: desc } });
+            },
+
+            confirmDelete(id) { this.targetDeleteId = id; document.getElementById('deleteRepoCheck').checked = false; UI.openModal('deleteModal'); },
+            async executeDelete() {
+                const p = this.pages.find(x => x.id === this.targetDeleteId);
+                if(p) {
+                    if (document.getElementById('deleteRepoCheck').checked) {
+                        const match = p.url.match(/https?:\/\/([\w\-]+)\.github\.io\/?([\w\-\.]+)?/i);
+                        if(match) worker.postMessage({ type: 'DELETE_REPO', payload: { id: p.id, owner: match[1], repo: match[2] || `${match[1]}.github.io`, pat: localStorage.getItem('githubPat') } });
+                    }
+                    await db.delete('pages', p.id); this.pages = this.pages.filter(x => x.id !== p.id);
+                    this.renderList(); UI.showToast("削除しました"); history.back();
+                }
+            },
+
+            async syncAll() {
+                const pat = localStorage.getItem('githubPat');
+                if(!pat) return UI.showToast("設定からGitHub PATを登録してください", "error");
+                document.getElementById('sync-status').classList.remove('hidden');
+                this.isSyncing = true;
+                for (let p of this.pages) {
+                    if(!this.isSyncing) break;
+                    document.getElementById('sync-progress-text').innerText = `同期中... (${p.title || '取得中'})`;
+                    worker.postMessage({ type: 'FETCH_METADATA', payload: { id: p.id, url: p.url, pat } });
+                    await new Promise(r => setTimeout(r, 1000)); // Rate limit 対策
+                }
+                if(this.isSyncing) {
+                    document.getElementById('sync-status').classList.add('hidden');
+                    UI.showToast("同期が完了しました", "success");
+                    this.isSyncing = false;
+                }
+            },
+            cancelSync() {
+                this.isSyncing = false;
+                document.getElementById('sync-status').classList.add('hidden');
+                UI.showToast("同期を停止しました", "info");
+            },
+
+            // Requirement 2, 3: AI Meta Generation
+            async generateMetaAI() {
+                const apiKey = localStorage.getItem('aiApiKey');
+                if(!apiKey) return UI.showToast("設定からGemini API Keyを登録してください", "error");
+                const url = document.getElementById('pageUrl').value;
+                const title = document.getElementById('pageTitle').value;
+                if(!url && !title) return UI.showToast("URLまたはタイトルを入力してください", "info");
+                
+                const id = document.getElementById('pageId').value;
+                const p = id ? this.pages.find(x => x.id === id) : null;
+                const extraInfo = p && p.readmeContent ? `\nREADME情報: ${p.readmeContent.substring(0, 1000)}` : (p && p.description ? `\n概要: ${p.description}` : '');
+
+                try {
+                    UI.showToast("AIが情報を生成中...", "info");
+                    const prompt = `以下のプロジェクト情報から、アプリの整理に最適な「グループ名(文字列)」、「タグ(カンマ区切り文字列)」、「概要の要約(文字列)」を生成してください。必ず以下のJSON形式で出力してください。\nフォーマット: {"group": "...", "tags": "...", "description": "..."}\n情報: URL=${url}, Title=${title}${extraInfo}`;
+                    
+                    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+                        method: 'POST', headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }]}] })
+                    });
+                    const data = await res.json();
+                    let text = data.candidates[0].content.parts[0].text;
+                    text = text.replace(/```json/g, '').replace(/```/g, '').trim();
+                    const result = JSON.parse(text);
+
+                    if(result.group) document.getElementById('pageGroup').value = result.group;
+                    if(result.tags) document.getElementById('pageTags').value = result.tags;
+                    if(result.description) document.getElementById('pageDesc').value = result.description;
+
+                    UI.showToast("生成しました。確認して保存してください。", "success");
+                } catch(e) { 
+                    console.error("AI Generation Error", e);
+                    UI.showToast("生成に失敗しました。", "error"); 
+                }
+            },
+
+            // Requirement 5: Auto-summarize empty descriptions
+            async autoGenerateDescription(id) {
+                const apiKey = localStorage.getItem('aiApiKey');
+                if(!apiKey) return; 
+                const p = this.pages.find(x => x.id === id);
+                if(!p || p.description) return; 
+                
+                if(!p.readmeContent) {
+                    const match = p.url.match(/https?:\/\/([\w\-]+)\.github\.io\/?([\w\-\.]+)?/i);
+                    if(match) worker.postMessage({ type: 'FETCH_README', payload: { id: p.id, owner: match[1], repo: match[2]||`${match[1]}.github.io`, pat: localStorage.getItem('githubPat') } });
+                    return;
                 }
 
-                const putRes = await fetch(`https://api.github.com/repos/${username}/${repoName}/contents/${encodeURIComponent(name).replace(/%2F/g, '/')}`, {
-                    method: 'PUT', headers,
-                    body: JSON.stringify({ message: 'Update via Deployer', content: b64, sha })
-                });
-                if (!putRes.ok) throw new Error(`${name} のアップロードに失敗しました。`);
+                try {
+                    const prompt = `以下のREADMEテキストから、このプロジェクトの概要を2〜3文（100文字程度）で要約してください。\n\n${p.readmeContent.substring(0, 2000)}`;
+                    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+                        method: 'POST', headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }]}] })
+                    });
+                    const data = await res.json();
+                    if(data.candidates && data.candidates[0]) {
+                        p.description = data.candidates[0].content.parts[0].text.trim();
+                        await db.put('pages', p);
+                        this.renderList(); // UIへ反映
+                    }
+                } catch(e) { console.error("AI Auto Summarize Error", e); }
+            },
+
+            openActions(id) {
+                const p = this.pages.find(x => x.id === id); if(!p) return;
+                const match = p.url.match(/https?:\/\/([\w\-]+)\.github\.io\/?([\w\-\.]+)?/i);
+                if(match && match[2]) {
+                    document.getElementById('actionsLoading').classList.remove('hidden');
+                    document.getElementById('actionsList').classList.add('hidden');
+                    document.getElementById('actionsEmpty').classList.add('hidden');
+                    UI.openModal('actionsModal');
+                    worker.postMessage({ type: 'FETCH_ACTIONS', payload: { owner: match[1], repo: match[2], pat: localStorage.getItem('githubPat') } });
+                } else UI.showToast("リポジトリが特定できません", "error");
+            },
+
+            openReadme(id) {
+                const p = this.pages.find(x => x.id === id); if(!p) return;
+                this.currentReadmeId = id;
+                document.getElementById('readmeTitle').innerHTML = `<i class="fa-solid fa-book-open mr-2 text-blue-500"></i>${p.title}`;
+                document.getElementById('readmeViewArea').classList.remove('hidden'); document.getElementById('readmeEditArea').classList.add('hidden');
+                document.getElementById('readmeEditBtn').innerHTML = '<i class="fa-solid fa-pen"></i> 編集';
+                
+                if (p.readmeContent) {
+                    document.getElementById('readmeLoading').classList.add('hidden'); document.getElementById('readmeError').classList.add('hidden');
+                    document.getElementById('readmeBody').innerHTML = DOMPurify.sanitize(marked.parse(p.readmeContent));
+                } else {
+                    document.getElementById('readmeLoading').classList.remove('hidden'); document.getElementById('readmeBody').innerHTML = '';
+                    const match = p.url.match(/https?:\/\/([\w\-]+)\.github\.io\/?([\w\-\.]+)?/i);
+                    if(match) worker.postMessage({ type: 'FETCH_README', payload: { id: p.id, owner: match[1], repo: match[2]||`${match[1]}.github.io`, pat: localStorage.getItem('githubPat') } });
+                }
+                UI.openModal('readmeModal');
+            },
+            toggleReadmeEdit() {
+                const isEdit = document.getElementById('readmeEditArea').classList.contains('hidden');
+                document.getElementById('readmeViewArea').classList.toggle('hidden', isEdit);
+                document.getElementById('readmeEditArea').classList.toggle('hidden', !isEdit);
+                document.getElementById('readmeEditBtn').classList.toggle('hidden', isEdit); 
+                if(isEdit) {
+                    const p = this.pages.find(x => x.id === this.currentReadmeId);
+                    document.getElementById('readmeEditor').value = p.readmeContent || '';
+                }
+            },
+            async saveReadme() {
+                const p = this.pages.find(x => x.id === this.currentReadmeId);
+                if(p) {
+                    p.readmeContent = document.getElementById('readmeEditor').value; await db.put('pages', p);
+                    document.getElementById('readmeBody').innerHTML = DOMPurify.sanitize(marked.parse(p.readmeContent));
+                    this.toggleReadmeEdit(); UI.showToast("Readmeを保存しました", "success");
+                }
+            },
+
+            toggleGroupView() { this.isGroupView = !this.isGroupView; document.getElementById('groupToggleBtn').classList.toggle('bg-blue-50', this.isGroupView); document.getElementById('groupToggleBtn').classList.toggle('text-blue-600', this.isGroupView); this.renderList(); },
+            renderPages() { this.filterMode = 'all'; this.renderList(); }, renderFavorites() { this.filterMode = 'favorites'; this.renderList(); },
+            filterByTag(tag) { this.activeTag = tag; this.renderList(); },
+
+            renderList() {
+                const c = document.getElementById('pagesList'); c.innerHTML = '';
+                let f = this.pages; 
+                if (this.filterMode === 'favorites') f = f.filter(p => p.isFavorite);
+                if (this.activeTag) f = f.filter(p => p.tags && p.tags.includes(this.activeTag));
+                
+                this.searchQuery = document.getElementById('searchInput').value.toLowerCase();
+                if (this.searchQuery) f = f.filter(p => p.url.toLowerCase().includes(this.searchQuery) || (p.title&&p.title.toLowerCase().includes(this.searchQuery)) || (p.tags&&p.tags.some(t=>t.toLowerCase().includes(this.searchQuery))));
+
+                // Update Datalist for Auto-complete
+                const groups = new Set(this.pages.map(p => p.group || '未分類'));
+                document.getElementById('groupList').innerHTML = Array.from(groups).map(g => `<option value="${g}">`).join('');
+
+                // Update Tag Filter UI
+                const allTags = new Set();
+                this.pages.forEach(p => (p.tags||[]).forEach(t => allTags.add(t)));
+                if(allTags.size > 0) {
+                    const tagHtml = `<button onclick="App.filterByTag(null)" class="px-4 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition touch-target ${!this.activeTag ? 'bg-blue-600 text-white shadow-md' : 'bg-white text-gray-600 border border-gray-200'}">すべて</button>` + 
+                        Array.from(allTags).sort().map(t => `<button onclick="App.filterByTag('${t}')" class="px-4 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition touch-target ${this.activeTag === t ? 'bg-blue-600 text-white shadow-md' : 'bg-white text-gray-600 border border-gray-200'}">${t}</button>`).join('');
+                    document.getElementById('tagFilterContainer').innerHTML = tagHtml;
+                } else {
+                    document.getElementById('tagFilterContainer').innerHTML = '';
+                }
+
+                if (f.length === 0) { document.getElementById('emptyState').classList.remove('hidden'); return; }
+                document.getElementById('emptyState').classList.add('hidden');
+
+                const renderCards = (pagesArr) => `<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">` + pagesArr.map(p => `
+                    <div class="card p-4 relative cursor-pointer flex flex-col h-full ripple-target" onclick="window.open('${p.url}', '_blank')">
+                        <div class="flex justify-between items-start mb-2">
+                            <h3 class="font-bold text-gray-800 truncate text-lg pr-2">${p.title}</h3>
+                            <div class="flex items-center gap-1 shrink-0">
+                                <!-- Requirement 1: GitHub Link Icon -->
+                                ${p.githubRepoUrl ? `<button onclick="event.stopPropagation(); window.open('${p.githubRepoUrl}', '_blank')" class="touch-target text-xl text-gray-400 hover:text-gray-800 transition -mt-2" title="GitHubリポジトリ"><i class="fa-brands fa-github"></i></button>` : ''}
+                                <button onclick="event.stopPropagation(); const px=App.pages.find(x=>x.id==='${p.id}'); px.isFavorite=!px.isFavorite; db.put('pages', px).then(()=>App.renderList());" class="touch-target text-xl ${p.isFavorite ? 'text-yellow-400' : 'text-gray-200'} transition -mr-2 -mt-2"><i class="fa-solid fa-star"></i></button>
+                            </div>
+                        </div>
+                        
+                        <!-- Requirement 6: URLをリンク化 -->
+                        <a href="${p.url}" target="_blank" onclick="event.stopPropagation();" class="text-xs text-blue-600 hover:text-blue-800 hover:underline mb-2 truncate block">${p.url}</a>
+                        
+                        <!-- Requirement 4: Description/Memo Area -->
+                        <p class="text-xs text-gray-600 mb-2 line-clamp-2">${p.description ? p.description : (p.memo ? p.memo : '<span class="text-gray-400 italic">概要がありません</span>')}</p>
+                        
+                        ${p.tags && p.tags.length ? `<div class="flex gap-1 mb-2 flex-wrap">${p.tags.map(t=>`<span class="text-[10px] bg-gray-100 text-gray-600 px-2 py-0.5 rounded">${t}</span>`).join('')}</div>` : ''}
+                        
+                        <!-- Avoid showing duplicate memo if it's the same as description -->
+                        ${p.memo && p.memo !== p.description ? `<div class="bg-yellow-50 text-yellow-800 text-xs p-2 rounded border border-yellow-100 mb-3 line-clamp-1"><i class="fa-solid fa-note-sticky"></i> ${p.memo}</div>` : '<div class="flex-grow"></div>'}
+                        
+                        <div class="flex gap-2 mb-3 mt-1">
+                            <button onclick="event.stopPropagation(); App.openReadme('${p.id}')" class="flex-1 flex items-center justify-center gap-1 py-2 px-2 bg-blue-50 text-blue-700 rounded-xl text-xs font-bold ripple-target"><i class="fa-solid fa-book-open"></i> Readme</button>
+                            <button onclick="event.stopPropagation(); App.openActions('${p.id}')" class="flex-1 flex items-center justify-center gap-1 py-2 px-2 bg-gray-50 text-gray-700 rounded-xl text-xs font-bold ripple-target"><i class="fa-solid fa-play"></i> Actions</button>
+                        </div>
+                        <div class="flex justify-between items-center mt-auto border-t border-gray-100 pt-3">
+                            <span class="text-[10px] text-gray-400 bg-gray-50 px-2 py-1 rounded-md"><i class="fa-solid fa-folder"></i> ${p.group || '未分類'}</span>
+                            <div class="flex gap-1 -mr-2">
+                                <button onclick="event.stopPropagation(); UI.openAddModal('${p.id}')" class="touch-target rounded-full bg-gray-50 text-gray-500 w-10 h-10"><i class="fa-solid fa-pen text-xs"></i></button>
+                                <button onclick="event.stopPropagation(); App.confirmDelete('${p.id}')" class="touch-target rounded-full bg-red-50 text-red-500 w-10 h-10"><i class="fa-solid fa-trash text-xs"></i></button>
+                            </div>
+                        </div>
+                    </div>`).join('') + `</div>`;
+
+                if (this.isGroupView) {
+                    const grouped = f.reduce((acc, p) => { const g = p.group || '未分類'; acc[g] = acc[g] || []; acc[g].push(p); return acc; }, {});
+                    c.innerHTML = Object.keys(grouped).sort().map(g => `<h2 class="text-lg font-bold mt-6 mb-3 text-gray-700 flex items-center gap-2"><i class="fa-solid fa-layer-group text-blue-500 text-sm"></i> ${g} <span class="text-xs bg-gray-200 text-gray-600 px-2 py-0.5 rounded-full">${grouped[g].length}</span></h2>${renderCards(grouped[g])}`).join('');
+                } else c.innerHTML = renderCards(f);
             }
+        };
 
-            // Pages設定 (409衝突回避のためtry-catch)
-            try {
-                addLog("Pages 設定を確認/更新中...");
-                await fetch(`https://api.github.com/repos/${username}/${repoName}/pages`, {
-                    method: 'POST', headers, body: JSON.stringify({ source: { branch: "main", path: "/" } })
+
+        const Deploy = {
+            allRepos: [], currentUsername: '', prepared: false,
+            prepare() {
+                const token = localStorage.getItem('githubPat') || localStorage.getItem('gh_token') || '';
+                const el = document.getElementById('deployToken');
+                if (el && !el.value && token) { el.value = token; this.fetchRepoList(); }
+                this.updateDomainOptions();
+                this.updateEmptyHint();
+                this.prepared = true;
+            },
+            saveToken() {
+                const v = document.getElementById('deployToken').value.trim();
+                if (v) { localStorage.setItem('gh_token', v); localStorage.setItem('githubPat', v); }
+            },
+            addLog(msg) {
+                const log = document.getElementById('deployLog');
+                if (!log) return;
+                log.innerHTML += `<div>&gt; ${this.escapeHtml(msg)}</div>`;
+                log.scrollTop = log.scrollHeight;
+            },
+            escapeHtml(str) {
+                return String(str).replace(/[&<>'"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[c]));
+            },
+            normalizeDomain(value) {
+                value = String(value || '').trim();
+                if (!value) return '';
+                try {
+                    if (!/^https?:\/\//i.test(value)) value = 'https://' + value;
+                    const u = new URL(value);
+                    return u.hostname.replace(/^www\./i, '').replace(/\/$/, '');
+                } catch(e) {
+                    return value.replace(/^https?:\/\//i, '').replace(/^www\./i, '').replace(/\/.*$/, '').trim();
+                }
+            },
+            getSavedDomains() {
+                try { return JSON.parse(localStorage.getItem('deploy_domain_history') || '[]'); }
+                catch(e) { return []; }
+            },
+            saveDomainToHistory(domain) {
+                domain = this.normalizeDomain(domain);
+                if (!domain) return;
+                const list = [domain, ...this.getSavedDomains().filter(d => d !== domain)].slice(0, 20);
+                localStorage.setItem('deploy_domain_history', JSON.stringify(list));
+                this.updateDomainOptions(domain);
+            },
+            updateDomainOptions(selected = '') {
+                const select = document.getElementById('deployDomainSelect');
+                if (!select) return;
+                const domains = new Set();
+                (App.pages || []).forEach(p => {
+                    const d = this.normalizeDomain(p.url);
+                    if (d && !d.endsWith('.github.io')) domains.add(d);
                 });
-            } catch (e) { console.log("Pages already configured."); }
+                this.getSavedDomains().forEach(d => { d = this.normalizeDomain(d); if (d && !d.endsWith('.github.io')) domains.add(d); });
+                const existingPages = document.getElementById('deployExistingPagesUrl');
+                if (existingPages && existingPages.href && !existingPages.classList.contains('hidden')) {
+                    const d = this.normalizeDomain(existingPages.href);
+                    if (d && !d.endsWith('.github.io')) domains.add(d);
+                }
+                const current = selected || select.value;
+                select.innerHTML = '<option value="">GitHub Pages標準URLを使う</option><option value="__manual__">手入力する</option>' +
+                    Array.from(domains).filter(Boolean).sort().map(d => `<option value="${this.escapeHtml(d)}">${this.escapeHtml(d)}</option>`).join('');
+                if (current && Array.from(select.options).some(o => o.value === current)) select.value = current;
+                else if (current === '__manual__') select.value = '__manual__';
+                this.handleDomainSelect(false);
+            },
+            handleDomainSelect(focusManual = true) {
+                const select = document.getElementById('deployDomainSelect');
+                const input = document.getElementById('deployCustomDomain');
+                if (!select || !input) return;
+                if (select.value === '__manual__') {
+                    input.classList.remove('hidden');
+                    if (focusManual) input.focus();
+                } else if (select.value) {
+                    input.value = select.value;
+                    input.classList.add('hidden');
+                } else {
+                    input.value = '';
+                    input.classList.add('hidden');
+                }
+            },
+            rememberManualDomainInput() {
+                const select = document.getElementById('deployDomainSelect');
+                if (select && select.value !== '__manual__') select.value = '__manual__';
+            },
+            getSelectedDomain() {
+                const select = document.getElementById('deployDomainSelect');
+                const input = document.getElementById('deployCustomDomain');
+                if (!select) return this.normalizeDomain(input ? input.value : '');
+                if (select.value === '__manual__') return this.normalizeDomain(input ? input.value : '');
+                return this.normalizeDomain(select.value);
+            },
+            async fetchRepoList() {
+                const token = document.getElementById('deployToken').value.trim();
+                if (!token || token.length < 10) return;
+                try {
+                    const headers = { 'Authorization': `Bearer ${token}`, 'Accept': 'application/vnd.github+json' };
+                    const userRes = await fetch('https://api.github.com/user', { headers });
+                    if (userRes.ok) this.currentUsername = (await userRes.json()).login;
+                    const res = await fetch('https://api.github.com/user/repos?sort=updated&per_page=100', { headers });
+                    if (res.ok) {
+                        this.allRepos = await res.json();
+                        this.addLog(`${this.allRepos.length} 個のリポジトリを同期しました。`);
+                        this.updateDomainOptions();
+                    }
+                } catch (err) { console.error(err); }
+            },
+            showDropdown() { if (this.allRepos.length > 0) this.filterRepos(); },
+            filterRepos() {
+                const inputEl = document.getElementById('deployRepoName');
+                const input = inputEl.value.toLowerCase();
+                const dropdown = document.getElementById('deployRepoDropdown');
+                dropdown.innerHTML = '';
+                if (input) {
+                    const createNew = document.createElement('div');
+                    createNew.className = 'p-3 cursor-pointer hover:bg-blue-50 border-b border-gray-100';
+                    createNew.innerHTML = `<div class="font-bold">✨ Create new: "${this.escapeHtml(input)}"</div><div class="text-xs text-gray-500">新しいリポジトリを作成します</div>`;
+                    createNew.onclick = () => this.selectRepo(input, true);
+                    dropdown.appendChild(createNew);
+                }
+                this.allRepos.filter(r => r.name.toLowerCase().includes(input)).forEach(repo => {
+                    const item = document.createElement('div');
+                    item.className = 'p-3 cursor-pointer hover:bg-blue-50 border-b border-gray-100';
+                    item.innerHTML = `<div class="font-bold">${this.escapeHtml(repo.name)} ${repo.private ? '🔒' : '🌐'}</div><div class="text-xs text-gray-500">Last updated: ${new Date(repo.updated_at).toLocaleDateString()}</div>`;
+                    item.onclick = () => this.selectRepo(repo.name, false, repo.html_url);
+                    dropdown.appendChild(item);
+                });
+                dropdown.classList.toggle('hidden', !(input || dropdown.children.length));
+                document.getElementById('deployRepoLinkArea').classList.add('hidden');
+            },
+            async selectRepo(name, isNew, url = '') {
+                document.getElementById('deployRepoName').value = name;
+                document.getElementById('deployRepoDropdown').classList.add('hidden');
+                const linkArea = document.getElementById('deployRepoLinkArea');
+                const repoLink = document.getElementById('deploySelectedRepoUrl');
+                const pagesLink = document.getElementById('deployExistingPagesUrl');
+                pagesLink.classList.add('hidden');
+                if (!isNew && url) {
+                    linkArea.classList.remove('hidden'); linkArea.classList.add('flex');
+                    repoLink.href = url; repoLink.innerText = `📁 リポジトリ: ${name}`;
+                    await this.checkExistingPages(name);
+                } else {
+                    linkArea.classList.add('hidden'); linkArea.classList.remove('flex');
+                }
+            },
+            async checkExistingPages(repoName) {
+                const token = document.getElementById('deployToken').value.trim();
+                if (!this.currentUsername || !token) return;
+                try {
+                    const res = await fetch(`https://api.github.com/repos/${this.currentUsername}/${repoName}/pages`, { headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/vnd.github+json' }});
+                    if (res.ok) {
+                        const data = await res.json();
+                        if (data.html_url) {
+                            const pagesLink = document.getElementById('deployExistingPagesUrl');
+                            pagesLink.href = data.html_url;
+                            pagesLink.innerText = `🚀 公開済みサイト: ${data.html_url}`;
+                            pagesLink.classList.remove('hidden');
+                            this.updateDomainOptions(this.normalizeDomain(data.html_url));
+                        }
+                    }
+                } catch(e) {}
+            },
+            normalizePath(path) { return path.replace(/^\/+/, '').replace(/\\/g, '/'); },
+            isProbablyText(filename) { return /\.(html?|css|js|mjs|json|txt|md|svg|xml|yml|yaml|csv|map)$/i.test(filename); },
+            async fileToBase64(fileOrBlob) {
+                return new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = () => resolve(String(reader.result).split(',')[1]);
+                    reader.onerror = reject;
+                    reader.readAsDataURL(fileOrBlob);
+                });
+            },
+            async addPickedFile(filename, blob) {
+                filename = this.normalizePath(filename);
+                if (!filename || filename.endsWith('/')) return;
+                if (this.isProbablyText(filename)) this.addFileRow(filename, await blob.text(), true, false);
+                else this.addFileRow(filename, await this.fileToBase64(blob), true, true);
+            },
+            async handleFilePicker(event) {
+                const files = Array.from(event.target.files || []);
+                if (!files.length) return;
+                for (const file of files) {
+                    if (/\.zip$/i.test(file.name)) {
+                        if (typeof JSZip === 'undefined') { UI.showToast('ZIP展開ライブラリを読み込めませんでした', 'error'); continue; }
+                        this.addLog(`ZIP展開中: ${file.name}`);
+                        const zip = await JSZip.loadAsync(file);
+                        const entries = Object.values(zip.files).filter(entry => !entry.dir && !entry.name.startsWith('__MACOSX/'));
+                        for (const entry of entries) await this.addPickedFile(entry.name, await entry.async('blob'));
+                        this.addLog(`${entries.length} 個のファイルをZIPから追加しました。`);
+                    } else {
+                        await this.addPickedFile(file.name, file);
+                        this.addLog(`ファイル追加: ${file.name}`);
+                    }
+                }
+                event.target.value = '';
+            },
+            addFileRow(name = '', content = '', removable = true, isBinary = false) {
+                const div = document.createElement('div');
+                div.className = 'p-3 border border-gray-200 rounded-xl bg-white relative';
+                div.dataset.binary = isBinary ? 'true' : 'false';
+                div.dataset.base64 = isBinary ? content : '';
+                div.innerHTML = `${removable ? '<button type="button" class="absolute top-2 right-2 text-red-500 text-xs font-bold" onclick="this.parentElement.remove(); Deploy.updateEmptyHint();">削除</button>' : ''}
+                    <input type="text" class="deployFilename w-full border border-gray-300 rounded-lg py-2 px-3 mb-2 text-sm" placeholder="filename.html" value="${this.escapeHtml(name)}">
+                    <textarea class="deployFilecontent w-full border border-gray-300 rounded-lg p-3 text-xs font-mono" rows="3" ${isBinary ? 'readonly' : ''}>${isBinary ? '[binary file: base64でアップロードします]' : this.escapeHtml(content)}</textarea>`;
+                document.getElementById('deployFileContainer').appendChild(div);
+                this.updateEmptyHint();
+            },
+            updateEmptyHint() {
+                const hint = document.getElementById('deployEmptyHint');
+                if (hint) hint.style.display = document.querySelectorAll('#deployFileContainer > div').length ? 'none' : 'block';
+            },
+            async handleDeploy(e) {
+                e.preventDefault();
+                const token = document.getElementById('deployToken').value.replace(/[\s\u3000]/g, '');
+                const repoName = document.getElementById('deployRepoName').value.trim();
+                const customDomain = this.getSelectedDomain();
+                const isPrivate = document.getElementById('deployRepoVisibility').value === 'true';
+                const btn = document.getElementById('deployExecBtn');
+                const fileItems = document.querySelectorAll('#deployFileContainer > div');
+                if (!token || !repoName) return UI.showToast('PATとリポジトリ名を入力してください', 'error');
+                if (!fileItems.length) return UI.showToast('アップロードするファイルを選択してください', 'error');
+                this.saveToken();
+                btn.disabled = true; document.getElementById('deployResultBox').classList.add('hidden'); document.getElementById('deployLog').innerHTML = '';
+                const headers = { 'Authorization': `Bearer ${token}`, 'Accept': 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' };
+                try {
+                    this.addLog('GitHub認証中...');
+                    const userRes = await fetch('https://api.github.com/user', { headers });
+                    if(!userRes.ok) throw new Error('認証失敗。トークンを確認してください。');
+                    const username = (await userRes.json()).login;
+                    let checkRepo = await fetch(`https://api.github.com/repos/${username}/${repoName}`, { headers });
+                    if (!checkRepo.ok) {
+                        this.addLog(`新規リポジトリ "${repoName}" を作成します...`);
+                        const createRes = await fetch('https://api.github.com/user/repos', { method: 'POST', headers, body: JSON.stringify({ name: repoName, auto_init: true, private: isPrivate }) });
+                        if (!createRes.ok) throw new Error('リポジトリ作成に失敗しました。');
+                        await new Promise(r => setTimeout(r, 2000));
+                    } else this.addLog(`既存のリポジトリ "${repoName}" を更新します。`);
 
-            document.getElementById('progressContainer').style.display = 'block';
-            let sec = 60;
-            const timerInterval = setInterval(() => { 
-                document.getElementById('timer').innerText = --sec; 
-                if(sec <= 0) clearInterval(timerInterval); 
-            }, 1000);
+                    for (const item of fileItems) {
+                        const name = item.querySelector('.deployFilename').value.trim();
+                        const content = item.querySelector('.deployFilecontent').value;
+                        if (!name) continue;
+                        const path = encodeURIComponent(name).replace(/%2F/g, '/');
+                        this.addLog(`転送中: ${name}`);
+                        const fCheck = await fetch(`https://api.github.com/repos/${username}/${repoName}/contents/${path}`, { headers });
+                        const sha = fCheck.ok ? (await fCheck.json()).sha : null;
+                        let b64;
+                        if (item.dataset.binary === 'true') b64 = item.dataset.base64;
+                        else {
+                            const uint8 = new TextEncoder().encode(content);
+                            let binary = '';
+                            for (let i = 0; i < uint8.length; i += 0x8000) binary += String.fromCharCode(...uint8.subarray(i, i + 0x8000));
+                            b64 = btoa(binary);
+                        }
+                        const putRes = await fetch(`https://api.github.com/repos/${username}/${repoName}/contents/${path}`, { method: 'PUT', headers, body: JSON.stringify({ message: 'Update via MyPages Hub Deployer', content: b64, sha }) });
+                        if (!putRes.ok) throw new Error(`${name} のアップロードに失敗しました。`);
+                    }
+                    if (customDomain) {
+                        this.addLog(`独自ドメイン設定中: ${customDomain}`);
+                        const cnameCheck = await fetch(`https://api.github.com/repos/${username}/${repoName}/contents/CNAME`, { headers });
+                        const cnameSha = cnameCheck.ok ? (await cnameCheck.json()).sha : null;
+                        const cnameB64 = btoa(customDomain);
+                        await fetch(`https://api.github.com/repos/${username}/${repoName}/contents/CNAME`, { method: 'PUT', headers, body: JSON.stringify({ message: 'Set custom domain via MyPages Hub', content: cnameB64, sha: cnameSha }) });
+                    }
+                    this.addLog('Pages 設定を確認/更新中...');
+                    await fetch(`https://api.github.com/repos/${username}/${repoName}/pages`, { method: 'POST', headers, body: JSON.stringify({ source: { branch: 'main', path: '/' } }) }).catch(()=>{});
+                    const site = customDomain ? `https://${customDomain}/` : `https://${username}.github.io/${repoName}/`;
+                    if (customDomain) this.saveDomainToHistory(customDomain);
+                    const repo = `https://github.com/${username}/${repoName}`;
+                    document.getElementById('deployProgressContainer').classList.remove('hidden');
+                    let sec = 60; document.getElementById('deployTimer').innerText = sec;
+                    const timer = setInterval(() => { document.getElementById('deployTimer').innerText = --sec; if (sec <= 0) clearInterval(timer); }, 1000);
+                    await new Promise(r => setTimeout(r, 60000));
+                    document.getElementById('deployProgressContainer').classList.add('hidden');
+                    document.getElementById('deploySiteUrl').href = site;
+                    document.getElementById('deployRepoUrl').href = repo;
+                    document.getElementById('deployResultBox').classList.remove('hidden');
+                    this.addLog('✅ デプロイ完了！');
+                    UI.showToast('デプロイ完了', 'success');
 
-            await new Promise(r => setTimeout(r, 60000));
+                    // Hubにも自動登録/更新
+                    const now = Date.now();
+                    let p = App.pages.find(x => x.url === site);
+                    if (!p) { p = { id: 'p_'+now, url: site, title: repoName, group: 'デプロイ済み', tags: ['GitHub Pages'], memo: '', createdAt: now, updatedAt: now }; App.pages.unshift(p); }
+                    p.githubRepoUrl = repo; p.updatedAt = now;
+                    await db.put('pages', p); App.renderList();
+                } catch (err) {
+                    this.addLog(`❌ エラー: ${err.message}`); UI.showToast(err.message, 'error');
+                } finally {
+                    btn.disabled = false; document.getElementById('deployProgressContainer').classList.add('hidden');
+                }
+            }
+        };
 
-            document.getElementById('siteUrl').href = customDomain ? `https://${customDomain}` : `https://${username}.github.io/${repoName}/`;
-            document.getElementById('repoUrl').href = `https://github.com/${username}/${repoName}`;
-            document.getElementById('resultBox').style.display = 'block';
-            addLog("✅ デプロイ完了！");
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('#deployRepoName') && !e.target.closest('#deployRepoDropdown')) {
+                const dd = document.getElementById('deployRepoDropdown');
+                if (dd) dd.classList.add('hidden');
+            }
+        });
 
-        } catch (err) { 
-            addLog(`❌ エラー: ${err.message}`); 
-        } finally { 
-            btn.disabled = false; 
-            document.getElementById('progressContainer').style.display = 'none'; 
-        }
-    }
-</script>
+        document.getElementById('searchInput').addEventListener('input', () => App.renderList());
+        window.addEventListener('DOMContentLoaded', () => App.init());
+    </script>
 </body>
 </html>
