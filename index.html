@@ -99,6 +99,7 @@
             <i class="fa-brands fa-github text-6xl mb-4 text-gray-300"></i>
             <p>ページがありません</p>
             <p class="text-xs mt-2 text-center px-4">設定からPATを登録して自動検出するか<br>右下の「＋」ボタンから追加してください</p>
+            <button onclick="App.importReposFromGithub(true)" class="mt-5 px-5 py-3 bg-blue-600 text-white rounded-xl font-bold shadow-sm"><i class="fa-brands fa-github"></i> GitHubから取得</button>
         </div>
     </main>
 
@@ -110,7 +111,7 @@
         <div class="relative -top-6">
             <button onclick="UI.openAddModal()" class="w-14 h-14 bg-blue-600 rounded-full shadow-lg flex items-center justify-center text-white text-2xl hover:bg-blue-700 transition transform hover:scale-105 active:scale-95 ripple-target"><i class="fa-solid fa-plus"></i></button>
         </div>
-        <button onclick="App.syncAll()" class="flex flex-col items-center text-gray-400 hover:text-blue-600 transition touch-target w-16 ripple-target rounded-xl"><i class="fa-solid fa-rotate-right text-xl mb-1"></i><span class="text-[10px] font-medium">同期</span></button>
+        <button onclick="App.syncAll()" class="flex flex-col items-center text-gray-400 hover:text-blue-600 transition touch-target w-16 ripple-target rounded-xl"><i class="fa-solid fa-rotate-right text-xl mb-1"></i><span class="text-[10px] font-medium">取得</span></button>
         <button onclick="UI.openHistoryModal()" class="flex flex-col items-center text-gray-400 hover:text-blue-600 transition touch-target w-16 ripple-target rounded-xl"><i class="fa-solid fa-clock-rotate-left text-xl mb-1"></i><span class="text-[10px] font-medium">復元</span></button>
     </nav>
 
@@ -274,6 +275,7 @@
                     <p class="text-[10px] text-gray-500 mt-1">※APIキーはデバイス内にのみ保存されます。</p>
                 </div>
                 <button onclick="App.saveSettings()" class="w-full py-3 bg-blue-600 text-white rounded-xl font-medium ripple-target min-h-[48px]">保存</button>
+                <button onclick="App.importReposFromGithub(true)" class="w-full py-3 bg-gray-900 text-white rounded-xl font-medium ripple-target min-h-[48px]"><i class="fa-brands fa-github"></i> リポジトリを今すぐ取得</button>
             </div>
             <button onclick="history.back()" class="w-full mt-4 py-3 bg-gray-100 text-gray-700 rounded-xl font-medium ripple-target min-h-[48px] mb-safe">閉じる</button>
         </div>
@@ -508,11 +510,154 @@
                 ['githubPat', 'aiApiKey', 'aiPrompt'].forEach(k => { if(localStorage.getItem(k)) document.getElementById(k).value = localStorage.getItem(k); });
                 this.pages = await db.getAll('pages'); this.pages.sort((a,b)=>b.updatedAt-a.updatedAt);
                 this.setupWorker(); this.renderPages();
+
+                // 起動時は保存済みデータを即表示し、その後に裏でGitHubとの差分同期だけ実行
+                setTimeout(() => this.backgroundDiffSync(), 600);
             },
             saveSettings() {
                 ['githubPat', 'aiApiKey', 'aiPrompt'].forEach(k => {
                     const v = document.getElementById(k).value.trim(); if(v) localStorage.setItem(k, v); else localStorage.removeItem(k);
                 }); UI.showToast("設定を保存しました", "success");
+                this.importReposFromGithub(false);
+            },
+
+            async backgroundDiffSync() {
+                const pat = localStorage.getItem('githubPat') || localStorage.getItem('gh_token');
+                if (!pat || this.isSyncing) return;
+
+                const syncStatus = document.getElementById('sync-status');
+                const syncText = document.getElementById('sync-progress-text');
+                this.isSyncing = true;
+                if (syncStatus) syncStatus.classList.remove('hidden');
+                if (syncText) syncText.innerText = '差分同期中...';
+
+                const headers = {
+                    'Authorization': `Bearer ${pat}`,
+                    'Accept': 'application/vnd.github+json',
+                    'X-GitHub-Api-Version': '2022-11-28'
+                };
+
+                try {
+                    const userRes = await fetch('https://api.github.com/user', { headers });
+                    if (!userRes.ok) throw new Error('GitHub認証に失敗しました');
+                    const user = await userRes.json();
+
+                    let page = 1, repos = [];
+                    while (page <= 5 && this.isSyncing) {
+                        const res = await fetch(`https://api.github.com/user/repos?sort=updated&per_page=100&page=${page}`, { headers });
+                        if (!res.ok) throw new Error('リポジトリ取得に失敗しました');
+                        const chunk = await res.json();
+                        repos = repos.concat(chunk);
+                        if (chunk.length < 100) break;
+                        page++;
+                    }
+
+                    let added = 0, changed = 0;
+                    const now = Date.now();
+                    const changedPages = [];
+
+                    for (const repo of repos) {
+                        if (!this.isSyncing) break;
+                        const owner = repo.owner && repo.owner.login ? repo.owner.login : user.login;
+                        const pagesUrl = `https://${owner}.github.io/${repo.name}/`;
+                        let p = this.pages.find(x => x.githubRepoUrl === repo.html_url || x.url === pagesUrl);
+
+                        if (!p) {
+                            p = {
+                                id: 'p_' + now + '_bg_' + added,
+                                url: pagesUrl,
+                                title: repo.name,
+                                description: repo.description || '',
+                                group: owner === user.login ? '自分のリポジトリ' : owner,
+                                tags: ['GitHub'],
+                                memo: '',
+                                isFavorite: false,
+                                createdAt: now,
+                                updatedAt: now,
+                                githubRepoUrl: repo.html_url,
+                                githubUpdatedAt: repo.updated_at
+                            };
+                            this.pages.unshift(p);
+                            changedPages.push(p);
+                            added++;
+                        } else if (p.githubUpdatedAt !== repo.updated_at || !p.githubRepoUrl) {
+                            if (!p.hasCustomTitle) p.title = repo.name;
+                            if (!p.description && repo.description) p.description = repo.description;
+                            p.githubRepoUrl = repo.html_url;
+                            p.githubUpdatedAt = repo.updated_at;
+                            p.lastBackgroundSync = new Date().toISOString();
+                            changedPages.push(p);
+                            changed++;
+                        }
+                    }
+
+                    for (const p of changedPages) await db.put('pages', p);
+
+                    if (changedPages.length > 0) {
+                        this.pages.sort((a,b)=> (b.updatedAt||0) - (a.updatedAt||0));
+                        this.renderList();
+                        for (const p of changedPages.slice(0, 30)) {
+                            worker.postMessage({ type: 'FETCH_METADATA', payload: { id: p.id, url: p.url, pat, lastFetch: p.lastFetch } });
+                        }
+                    }
+
+                    localStorage.setItem('lastBackgroundDiffSync', new Date().toISOString());
+                    if (added || changed) UI.showToast(`裏で差分同期しました（追加${added} / 更新${changed}）`, 'success');
+                } catch (e) {
+                    console.warn('Background diff sync skipped:', e);
+                } finally {
+                    this.isSyncing = false;
+                    if (syncStatus) syncStatus.classList.add('hidden');
+                }
+            },
+
+            async importReposFromGithub(showToast = true) {
+                const pat = localStorage.getItem('githubPat') || localStorage.getItem('gh_token');
+                if (!pat) { if (showToast) UI.showToast("設定からGitHub PATを登録してください", "error"); return; }
+                const syncStatus = document.getElementById('sync-status');
+                const syncText = document.getElementById('sync-progress-text');
+                if (syncStatus) syncStatus.classList.remove('hidden');
+                if (syncText) syncText.innerText = 'リポジトリ取得中...';
+                const headers = { 'Authorization': `Bearer ${pat}`, 'Accept': 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' };
+                try {
+                    const userRes = await fetch('https://api.github.com/user', { headers });
+                    if (!userRes.ok) throw new Error('GitHub認証に失敗しました。PATを確認してください。');
+                    const user = await userRes.json();
+                    let page = 1, repos = [];
+                    while (page <= 5) {
+                        const res = await fetch(`https://api.github.com/user/repos?sort=updated&per_page=100&page=${page}`, { headers });
+                        if (!res.ok) throw new Error('リポジトリ取得に失敗しました。');
+                        const chunk = await res.json();
+                        repos = repos.concat(chunk);
+                        if (chunk.length < 100) break;
+                        page++;
+                    }
+                    let added = 0, updated = 0;
+                    const now = Date.now();
+                    for (const repo of repos) {
+                        const owner = repo.owner && repo.owner.login ? repo.owner.login : user.login;
+                        const pagesUrl = `https://${owner}.github.io/${repo.name}/`;
+                        let p = this.pages.find(x => x.githubRepoUrl === repo.html_url || x.url === pagesUrl);
+                        if (!p) {
+                            p = { id: 'p_' + now + '_' + added, url: pagesUrl, title: repo.name, description: repo.description || '', group: repo.owner.login === user.login ? '自分のリポジトリ' : repo.owner.login, tags: ['GitHub'], memo: '', isFavorite: false, createdAt: now, updatedAt: now };
+                            this.pages.unshift(p); added++;
+                        } else {
+                            if (!p.hasCustomTitle) p.title = repo.name;
+                            if (!p.description && repo.description) p.description = repo.description;
+                            p.updatedAt = now; updated++;
+                        }
+                        p.githubRepoUrl = repo.html_url;
+                        p.githubUpdatedAt = repo.updated_at;
+                        await db.put('pages', p);
+                    }
+                    this.pages.sort((a,b)=> (b.updatedAt||0) - (a.updatedAt||0));
+                    this.renderList();
+                    if (showToast) UI.showToast(`${repos.length}件取得しました（追加${added} / 更新${updated}）`, "success");
+                } catch (e) {
+                    if (showToast) UI.showToast(e.message || '取得に失敗しました', 'error');
+                } finally {
+                    if (syncStatus) syncStatus.classList.add('hidden');
+                }
             },
 
             setupWorker() {
@@ -636,8 +781,9 @@
             },
 
             async syncAll() {
-                const pat = localStorage.getItem('githubPat');
+                const pat = localStorage.getItem('githubPat') || localStorage.getItem('gh_token');
                 if(!pat) return UI.showToast("設定からGitHub PATを登録してください", "error");
+                await this.importReposFromGithub(false);
                 document.getElementById('sync-status').classList.remove('hidden');
                 this.isSyncing = true;
                 for (let p of this.pages) {
