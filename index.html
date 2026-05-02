@@ -14,7 +14,8 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
     <!-- JSZip for ZIP deploy upload -->
     <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
-    <link rel="manifest" id="manifest" href="">
+    <link rel="manifest" href="manifest.webmanifest">
+    <link rel="apple-touch-icon" href="icon-192.png">
     <style>
         :root {
             --bg-color: #f3f4f6;
@@ -146,7 +147,7 @@
                         <span class="text-sm font-bold text-purple-800"><i class="fa-solid fa-robot"></i> AIアシスト生成</span>
                         <button type="button" onclick="App.generateMetaAI()" class="text-xs px-3 py-2 bg-purple-600 text-white rounded-lg shadow-sm font-bold flex items-center gap-1 ripple-target"><i class="fa-solid fa-wand-magic-sparkles"></i> 情報を自動入力</button>
                     </div>
-                    <p class="text-[10px] text-purple-600">入力されたURLやタイトル等から、グループ・タグ・概要をAIが予測して埋めます。</p>
+                    <p class="text-[10px] text-purple-600">ボタンを押したときだけGeminiを実行します。起動時や同期時には自動実行しません。</p>
                 </div>
 
                 <div>
@@ -183,17 +184,17 @@
                     </div>
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">グループ (AI自動入力・任意)</label>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">グループ (任意)</label>
                     <input type="text" id="pageGroup" placeholder="例: クライアントA" class="w-full border border-gray-300 rounded-xl py-3 px-3 focus:ring-2 focus:ring-blue-500" list="groupList">
                     <datalist id="groupList"></datalist>
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">タグ (AI自動入力・カンマ区切り)</label>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">タグ (カンマ区切り)</label>
                     <input type="text" id="pageTags" placeholder="例: ツール, 予約" class="w-full border border-gray-300 rounded-xl py-3 px-3 focus:ring-2 focus:ring-blue-500">
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">概要 (AI要約・任意)</label>
-                    <textarea id="pageDesc" rows="2" placeholder="リポジトリの概要やAIによる要約" class="w-full border border-gray-300 rounded-xl py-3 px-3 focus:ring-2 focus:ring-blue-500"></textarea>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">概要 (任意)</label>
+                    <textarea id="pageDesc" rows="2" placeholder="リポジトリの概要" class="w-full border border-gray-300 rounded-xl py-3 px-3 focus:ring-2 focus:ring-blue-500"></textarea>
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">個人的なメモ</label>
@@ -307,7 +308,7 @@
                 <div class="p-4 bg-gray-50 rounded-xl border"><h3 class="font-bold mb-2">GitHub PAT (repo, delete_repo権限推奨)</h3>
                     <input type="password" id="githubPat" placeholder="ghp_..." class="w-full border rounded-lg py-3 px-3 mb-2">
                 </div>
-                <div class="p-4 bg-purple-50 rounded-xl border"><h3 class="font-bold text-purple-800 mb-2">AI連携 (Gemini)</h3>
+                <div class="p-4 bg-purple-50 rounded-xl border"><h3 class="font-bold text-purple-800 mb-2">AI連携 (Gemini / 手動実行)</h3>
                     <input type="password" id="aiApiKey" placeholder="AI API Key" class="w-full border rounded-lg py-3 px-3 mb-2">
                     <textarea id="aiPrompt" rows="2" class="w-full border rounded-lg py-2 px-3 mb-2 hidden"></textarea>
                     <p class="text-[10px] text-gray-500 mt-1">※APIキーはデバイス内にのみ保存されます。</p>
@@ -400,9 +401,8 @@
     <div id="toastContainer" class="fixed bottom-24 left-1/2 transform -translate-x-1/2 z-50 flex flex-col gap-2 pointer-events-none w-[90%] sm:w-auto items-center"></div>
 
     <script>
-        // --- 1. Manifest & SW Update Detection ---
-        const manifest = { name: "MyPages Hub", short_name: "MyPages", start_url: ".", display: "standalone", background_color: "#f3f4f6", theme_color: "#2563eb", icons: [{ src: "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHBhdGggZD0iTTEyIDBDNS4zNyAwIDAgNS4zNyAwIDEyYzAgNS4zMSAzLjQzNSA5LjgyNiA4LjIwNiAxMS4zODcuNi4xMTEuODE4LS4yNi44MTgtLjU3OHYtMi4wNDRjLTMuMzM4LjcyNC00LjA0Mi0xLjYxLTQuMDQyLTEuNjFDNC40MjIgMTguMDcgMy42MzMgMTcuNyAzLjYzMyAxNy43Yy0xLjA4Ny0uNzQ0LjA4NC0uNzI5LjA4NC0uNzI5IDEuMjA1LjA4NCAxLjgzOCAxLjIzNiAxLjgzOCAxLjIzNiAxLjA3IDEuODM1IDIuODA5IDEuMzA1IDMuNDk1Ljk5OC4xMDgtLjc3Ni40MTctMS4zMDUuNzYtMS42MDUtMi42NjUtLjMwMy01LjQ2Ni0xLjMzMi01LjQ2Ni01LjkzIDAtMS4zMS40NjUtMi4zOCAxLjIzNS0zLjIyMi0uMTIzLS4zMDMtLjUzNS0xLjUyMy4xMTctMy4xNzYgMCAwIDEuMDA4LS4zMjIgMy4zMDEgMS4yMy45NTctLjI2NiAxLjk4My0uMzk4IDMuMDAzLS40MDQgMS4wMi4wMDYgMi4wNDYuMTM4IDMuMDAzLjQwNCAyLjI5MS0xLjU1MiAzLjI5Ny0xLjIzIDMyLjk3LTEuMjMuNjUzIDEuNjUzLjI0MiAyLjg3NC4xMTggMy4xNzYuNzcuODQgMS4yMzUgMS45MTEgMS4yMzUgMy4yMjIgMCA0LjYxLTIuODA1IDUuNjI1LTUuNDc1IDUuOTIuNDIuMzYuODEgMS4wOTYuODEgMi4yMmwwIDMuMjJjMCAuMzIuMjE2LjY5NC44MjUuNTc2QzIwLjU2NSAyMS44MjYgMjQgMTcuMzEgMjQgMTJjMC02LjYzLLTUuMzctMTItMTItMTJ6IiBmaWxsPSIjMjU2M2ViIi8+PC9zdmc+", sizes: "192x192", type: "image/svg+xml" }] };
-        document.getElementById('manifest').href = 'data:application/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(manifest));
+        // --- 1. PWA Service Worker Update Detection ---
+        // manifest.webmanifest とアイコンファイルは外部ファイルとして同梱します。
 
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
@@ -780,8 +780,7 @@
                             db.put('pages', p); 
                             this.renderList(); 
 
-                            // Requirement 5: descriptionが取得できず空の場合はAI自動要約を試みる
-                            if (!p.description) this.autoGenerateDescription(p.id);
+                            // Geminiは自動実行しません。必要な場合はAIボタンから手動実行してください。
                         }
                     } else if (type === 'CREATE_REPO_RESULT') {
                         document.getElementById('createRepoBtn').innerHTML = '<i class="fa-solid fa-rocket"></i> 作成する';
@@ -831,8 +830,7 @@
                         if (payload.status === 'success' && p) {
                             p.readmeContent = payload.content; db.put('pages', p);
                             
-                            // Requirement 5: descriptionが空の場合、取得したREADMEを使って自動要約
-                            if (!p.description) this.autoGenerateDescription(p.id);
+                            // Geminiは自動実行しません。README取得後も要約は手動です。
 
                             if (this.currentReadmeId === p.id && !document.getElementById('readmeModal').classList.contains('hidden')) {
                                 document.getElementById('readmeLoading').classList.add('hidden');
@@ -880,8 +878,7 @@
                 history.back(); this.renderList(); UI.showToast("保存しました", "success");
                 worker.postMessage({ type: 'FETCH_METADATA', payload: { id: p.id, url: p.url, pat: localStorage.getItem('githubPat') } });
                 
-                // Requirement 5: 保存時に description が空であれば自動要約
-                if (!p.description) this.autoGenerateDescription(p.id);
+                // Geminiは保存時にも自動実行しません。
             },
 
             async handleCreateRepo(e) {
@@ -967,7 +964,14 @@
                 }
             },
 
-            // Requirement 5: Auto-summarize empty descriptions
+            async generateMetaAIForPage(id) {
+                const p = this.pages.find(x => x.id === id);
+                if (!p) return;
+                UI.openAddModal(id);
+                setTimeout(() => this.generateMetaAI(), 350);
+            },
+
+            // 手動要約用の関数として残しています。自動では呼び出しません。
             async autoGenerateDescription(id) {
                 const apiKey = localStorage.getItem('aiApiKey');
                 if(!apiKey) return; 
@@ -1099,6 +1103,7 @@
                         <div class="flex gap-2 mb-3 mt-1">
                             <button onclick="event.stopPropagation(); App.openReadme('${p.id}')" class="flex-1 flex items-center justify-center gap-1 py-2 px-2 bg-blue-50 text-blue-700 rounded-xl text-xs font-bold ripple-target"><i class="fa-solid fa-book-open"></i> Readme</button>
                             <button onclick="event.stopPropagation(); App.openActions('${p.id}')" class="flex-1 flex items-center justify-center gap-1 py-2 px-2 bg-gray-50 text-gray-700 rounded-xl text-xs font-bold ripple-target"><i class="fa-solid fa-play"></i> Actions</button>
+                            <button onclick="event.stopPropagation(); App.generateMetaAIForPage('${p.id}')" class="flex-1 flex items-center justify-center gap-1 py-2 px-2 bg-purple-50 text-purple-700 rounded-xl text-xs font-bold ripple-target" title="Geminiで情報を生成"><i class="fa-solid fa-wand-magic-sparkles"></i> AI</button>
                         </div>
                         <div class="flex justify-between items-center mt-auto border-t border-gray-100 pt-3">
                             <span class="text-[10px] text-gray-400 bg-gray-50 px-2 py-1 rounded-md"><i class="fa-solid fa-folder"></i> ${p.group || '未分類'}</span>
