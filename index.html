@@ -57,8 +57,11 @@
         .hide-scroll { -ms-overflow-style: none; scrollbar-width: none; }
         .line-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 
-        .admax-slot { margin: 16px auto 8px; width: min(100%, 720px); min-height: 1px; display: flex; justify-content: center; overflow: hidden; }
+        .admax-slot { margin: 16px auto 12px; width: min(100%, 720px); min-height: 1px; display: flex; justify-content: center; align-items: center; overflow: hidden; }
         .admax-slot:empty { display: none; }
+        .admax-slot.is-loading { display: flex; min-height: 12px; }
+        .admax-slot iframe, .admax-slot img { max-width: 100%; }
+        .admax-card { grid-column: 1 / -1; background: transparent; box-shadow: none; border: 0; padding: 0; }
     </style>
 </head>
 <body>
@@ -96,6 +99,10 @@
         <!-- Tag Filter -->
         <div class="mb-6 overflow-x-auto hide-scroll flex gap-2 pb-2 items-center" id="tagFilterContainer"></div>
 
+        <!-- admax top -->
+        <div id="admaxTop" class="admax-slot" aria-label="広告"></div>
+        <!-- admax top -->
+
         <!-- Pages List -->
         <div id="pagesList"></div>
         
@@ -107,9 +114,9 @@
         </div>
     </main>
 
-    <!-- admax -->
-    <div id="admaxContainer" class="admax-slot" aria-label="広告"></div>
-    <!-- admax -->
+    <!-- admax bottom -->
+    <div id="admaxBottom" class="admax-slot" aria-label="広告"></div>
+    <!-- admax bottom -->
 
     <!-- Bottom Navigation -->
     <nav class="bottom-nav fixed bottom-0 w-full z-20 flex justify-around items-center py-1 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
@@ -1078,7 +1085,7 @@
                 if (f.length === 0) { document.getElementById('emptyState').classList.remove('hidden'); return; }
                 document.getElementById('emptyState').classList.add('hidden');
 
-                const renderCards = (pagesArr) => `<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">` + pagesArr.map(p => `
+                const renderCards = (pagesArr) => `<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">` + pagesArr.map((p, index) => `
                     <div class="card p-4 relative cursor-pointer flex flex-col h-full ripple-target" onclick="window.open('${p.url}', '_blank')">
                         <div class="flex justify-between items-start mb-2">
                             <h3 class="font-bold text-gray-800 truncate text-lg pr-2">${p.repoPrivate ? '<i class="fa-solid fa-lock text-xs text-gray-400 mr-1"></i>' : '<i class="fa-solid fa-globe text-xs text-green-500 mr-1"></i>'}${p.title}</h3>
@@ -1112,12 +1119,13 @@
                                 <button onclick="event.stopPropagation(); App.confirmDelete('${p.id}')" class="touch-target rounded-full bg-red-50 text-red-500 w-10 h-10"><i class="fa-solid fa-trash text-xs"></i></button>
                             </div>
                         </div>
-                    </div>`).join('') + `</div>`;
+                    </div>${((index + 1) % 3 === 0) ? `<div class="admax-card"><div id="admaxInList_${index}" class="admax-slot" aria-label="広告"></div></div>` : ''}` ).join('') + `</div>`;
 
                 if (this.isGroupView) {
                     const grouped = f.reduce((acc, p) => { const g = p.group || '未分類'; acc[g] = acc[g] || []; acc[g].push(p); return acc; }, {});
                     c.innerHTML = Object.keys(grouped).sort().map(g => `<h2 class="text-lg font-bold mt-6 mb-3 text-gray-700 flex items-center gap-2"><i class="fa-solid fa-layer-group text-blue-500 text-sm"></i> ${g} <span class="text-xs bg-gray-200 text-gray-600 px-2 py-0.5 rounded-full">${grouped[g].length}</span></h2>${renderCards(grouped[g])}`).join('');
                 } else c.innerHTML = renderCards(f);
+                setTimeout(loadAdmaxStrong, 600);
             }
         };
 
@@ -1422,15 +1430,74 @@
             }
         });
 
-        function loadAdmax() {
-            const target = document.getElementById('admaxContainer');
-            if (!target || target.dataset.loaded === '1') return;
-            target.dataset.loaded = '1';
+        const ADMAX_SRC = 'https://adm.shinobi.jp/s/2b3b3972b0e51e3bec11a4e091894004';
+        let admaxLoading = false;
+
+        function appendAdHtmlToSlot(slot, html) {
+            if (!slot || !html) return;
+            const tpl = document.createElement('template');
+            tpl.innerHTML = html;
+            [...tpl.content.childNodes].forEach((node) => {
+                if (node.nodeName && node.nodeName.toLowerCase() === 'script') {
+                    const s = document.createElement('script');
+                    [...node.attributes].forEach(attr => s.setAttribute(attr.name, attr.value));
+                    if (node.textContent) s.textContent = node.textContent;
+                    slot.appendChild(s);
+                } else {
+                    slot.appendChild(node);
+                }
+            });
+        }
+
+        async function loadAdmaxSlot(slot) {
+            if (!slot || slot.dataset.loaded === '1' || admaxLoading) return;
+            admaxLoading = true;
+            slot.dataset.loaded = '1';
+            slot.classList.add('is-loading');
+            slot.innerHTML = '';
+            slot.style.display = 'flex';
+
+            const originalWrite = document.write.bind(document);
+            const originalWriteln = document.writeln.bind(document);
+            let restored = false;
+            const restoreWrite = () => {
+                if (restored) return;
+                restored = true;
+                document.write = originalWrite;
+                document.writeln = originalWriteln;
+                admaxLoading = false;
+                slot.classList.remove('is-loading');
+                // 空の広告枠は邪魔にならないよう閉じる。配信側が後から描画する場合があるので少し待つ。
+                setTimeout(() => {
+                    if (!slot.textContent.trim() && slot.children.length === 0) slot.style.display = 'none';
+                }, 2500);
+            };
+
+            document.write = (html) => appendAdHtmlToSlot(slot, html);
+            document.writeln = (html) => appendAdHtmlToSlot(slot, (html || '') + '\n');
+
             const s = document.createElement('script');
-            s.src = 'https://adm.shinobi.jp/s/2b3b3972b0e51e3bec11a4e091894004';
-            s.async = true;
-            s.onerror = () => { target.style.display = 'none'; };
-            target.appendChild(s);
+            s.src = ADMAX_SRC;
+            s.async = false;
+            s.onload = () => setTimeout(restoreWrite, 1500);
+            s.onerror = restoreWrite;
+            slot.appendChild(s);
+            setTimeout(restoreWrite, 10000);
+        }
+
+        async function loadAdmaxStrong() {
+            // 画面上部・カード間・下部の順で同一ページ内に直接scriptを挿入します。iframeは使いません。
+            const slots = [
+                document.getElementById('admaxTop'),
+                ...document.querySelectorAll('[id^="admaxInList_"]'),
+                document.getElementById('admaxBottom')
+            ].filter(Boolean);
+            for (const slot of slots) {
+                await new Promise(resolve => {
+                    loadAdmaxSlot(slot);
+                    setTimeout(resolve, 2200);
+                });
+            }
         }
 
         document.getElementById('searchInput').addEventListener('input', () => App.renderList());
@@ -1443,7 +1510,7 @@
                 if (empty) empty.classList.remove('hidden');
                 UI.showToast('起動時の読み込みに失敗しました。設定やキャッシュを確認してください。', 'error');
             } finally {
-                setTimeout(loadAdmax, 1200);
+                setTimeout(loadAdmaxStrong, 1200);
             }
         });
     </script>
