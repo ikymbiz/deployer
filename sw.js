@@ -1,4 +1,4 @@
-const CACHE_NAME = 'mypages-hub-integrated-v1';
+const CACHE_NAME = 'mypages-hub-admax-fixed-v2';
 const ASSETS = ['./', './index.html'];
 
 self.addEventListener('install', event => {
